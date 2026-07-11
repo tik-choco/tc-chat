@@ -1,0 +1,83 @@
+/* Video call: topbar control (VideoCallPanel) + the camera tile grid
+   (VideoCallStage), shown above the message stream next to .screen-stage. */
+
+.video-call-panel {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.video-call-count {
+  font-size: 0.85rem;
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+.camera-stage {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.6rem;
+  padding: 0.25rem 0 0.75rem;
+  margin-bottom: 0.25rem;
+  border-bottom: 1px dashed var(--border);
+}
+
+.camera-tile {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.camera-tile-video {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-alt);
+}
+
+/* The local self-preview reads like a mirror, matching how the user is used
+   to seeing themselves through a webcam elsewhere. */
+.camera-tile-video--mirrored {
+  transform: scaleX(-1);
+}
+
+.camera-tile--self .camera-tile-video {
+  border-color: var(--success);
+}
+
+.camera-tile-cap {
+  font-size: 0.7rem;
+  opacity: 0.65;
+}
+
+/* Remote tiles whose sender's DID we know open their profile card. */
+.camera-tile-cap--btn {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.7rem;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+
+.camera-tile-cap--btn:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+/* ---- MediaCautionDialog (extends .confirm-dialog) ---- */
+.media-caution-checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 0.9rem;
+  font-size: 0.82rem;
+  color: var(--text);
+  cursor: pointer;
+}

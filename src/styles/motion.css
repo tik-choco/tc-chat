@@ -1,0 +1,201 @@
+/* Motion, refined. Guiding rules:
+   - The board is a document you scan, not a stream — its nodes get NO entrance
+     movement (that cascades and feels busy on filter/scroll). Only easing-based
+     transitions (hover / press / theme / reactions) apply there.
+   - The chat IS a stream, so new lines may fade in gently (opacity-led, tiny
+     rise, short).
+   - No overshoot/bounce anywhere; calm easings only.
+   - Everything collapses under prefers-reduced-motion. */
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- Entrances (run once on mount; keyed lists only animate new items) ---- */
+
+/* Chat is a stream: a gentle, opacity-led fade for new lines. */
+.bubble-row,
+.msg-row {
+  animation: rise-in var(--dur-fast) var(--ease-out) both;
+}
+
+.screen-tile,
+.board-empty {
+  animation: fade-in var(--dur) var(--ease) both;
+}
+
+/* A composer opening is a deliberate action — fade it in, no movement. */
+.node-composer {
+  animation: fade-in var(--dur-fast) var(--ease) both;
+}
+
+.modal-overlay {
+  animation: fade-in var(--dur-fast) var(--ease) both;
+}
+
+.modal {
+  animation: modal-in var(--dur) var(--ease-out) both;
+}
+
+.reaction-palette {
+  animation: scale-in var(--dur-fast) var(--ease-out) both;
+  transform-origin: bottom left;
+}
+
+/* NOTE: board nodes (.board-node--root / replies) intentionally have NO entrance
+   animation — see the file header. They still get colour transitions below. */
+
+/* ---- Interactive: tactile press + hover transitions ---- */
+.pill-btn,
+.send-btn,
+.segmented-btn,
+.composer-kind-btn,
+.composer-cancel,
+.reaction-add,
+.avatar-choice,
+.theme-toggle,
+.board-empty-cta,
+.copy-line-btn,
+.profile-did-copy,
+.room-join-form button {
+  transition:
+    transform var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    opacity var(--dur-fast) var(--ease);
+}
+
+.pill-btn:active,
+.send-btn:active,
+.segmented-btn:active,
+.composer-kind-btn:active,
+.composer-cancel:active,
+.reaction-add:active,
+.avatar-choice:active,
+.theme-toggle:active,
+.board-empty-cta:active,
+.copy-line-btn:active,
+.profile-did-copy:active,
+.room-join-form button:active {
+  transform: scale(0.97);
+}
+
+/* Reaction chips: a soft fade-in on first appearance, and a light press. */
+.reaction-chip {
+  animation: fade-in var(--dur-fast) var(--ease) both;
+  transition:
+    transform var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.reaction-chip:active {
+  transform: scale(0.96);
+}
+
+/* Colour-only transitions for selectable surfaces (also smooths theme switch). */
+.room-item,
+.room-tab,
+.sidebar-user,
+.member-item,
+.modal-close,
+.room-leave,
+.board-node-action,
+.board-node--root {
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+/* Larger surfaces cross-fade their colours when the theme flips. */
+.app-shell,
+.sidebar,
+.topbar,
+.board,
+.board-header,
+.board-toolbar,
+.chat-window,
+.bubble,
+.segmented,
+.text-input,
+.field input,
+.field textarea,
+.node-composer input,
+.node-composer textarea {
+  transition:
+    background-color var(--dur) var(--ease),
+    border-color var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+
+/* Respect the OS "reduce motion" preference — but gently. The old rule
+   collapsed *every* animation and transition to ~0ms, which left the UI feeling
+   dead and read as "animations stopped working" for anyone with reduce-motion
+   enabled. Best practice is to reduce MOTION, not all feedback: here we swap the
+   movement-based entrances (rise / scale / modal slide) for a plain opacity
+   fade, drop transform-based feedback (press scale, drawer slide), and keep the
+   colour / opacity / shadow transitions that keep the interface alive. */
+@media (prefers-reduced-motion: reduce) {
+  /* Entrances fade in place instead of moving. */
+  .bubble-row,
+  .msg-row,
+  .modal,
+  .reaction-palette {
+    animation-name: fade-in !important;
+  }
+
+  /* Keep colour/opacity/shadow transitions; remove transform (motion) ones. */
+  *,
+  *::before,
+  *::after {
+    transition-property: background-color, border-color, color, opacity, box-shadow,
+      outline-color !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* The mobile drawer snaps rather than slides. */
+  .sidebar {
+    transition: none !important;
+  }
+}

@@ -1,0 +1,122 @@
+.username-gate {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background:
+    radial-gradient(120% 90% at 50% 0%, var(--bg-accent) 0%, var(--bg) 70%);
+}
+
+.username-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
+  width: min(92vw, 360px);
+  padding: var(--space-6);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  box-shadow: var(--shadow-3);
+  animation: gate-in var(--dur-slow) var(--ease-out) both;
+}
+
+@keyframes gate-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.username-logo {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-m);
+  background: linear-gradient(135deg, var(--primary), var(--primary-active));
+  color: var(--on-primary);
+  font-size: 1.6rem;
+  box-shadow: var(--shadow-2);
+}
+
+.username-card h1 {
+  margin: var(--space-2) 0 0;
+  color: var(--text);
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.username-sub {
+  margin: 0 0 var(--space-2);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.username-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.username-field > span {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.username-card input {
+  width: 100%;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.username-card input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+.username-card button {
+  padding: 0.7rem 0.9rem;
+  border: none;
+  border-radius: var(--radius-s);
+  background: var(--primary);
+  color: var(--on-primary);
+  font-weight: 650;
+  font-size: 0.95rem;
+  cursor: pointer;
+  box-shadow: var(--shadow-1);
+  transition: background var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+
+.username-card button:not(:disabled):hover {
+  background: var(--primary-hover);
+  box-shadow: var(--shadow-2);
+}
+
+.username-card button:disabled {
+  background: var(--surface-3);
+  color: var(--text-subtle);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.username-foot {
+  margin: var(--space-1) 0 0;
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--text-subtle);
+}
