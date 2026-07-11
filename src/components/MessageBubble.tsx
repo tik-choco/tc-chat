@@ -5,9 +5,11 @@ import { storage_get } from "../lib/mistClient";
 import { formatBytes, formatTime, shortDid } from "../lib/util";
 import { identityFor, type ProfileDirectory } from "../lib/profileDirectory";
 import { useT } from "../lib/i18n";
+import { extractHttpUrls, splitByUrls } from "../lib/linkPreview";
 import { Avatar } from "./Avatar";
 import { ReactionBar } from "./ReactionBar";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { LinkPreviewCard } from "./LinkPreviewCard";
 
 const blobUrlCache = new Map<string, string>();
 
@@ -83,6 +85,19 @@ function MediaContent(props: { message: ChatMessage; onMaximize: (messageId: str
       <Paperclip size={14} /> {message.fileName ?? t("chat.file")}
       {message.fileSize !== undefined && <span> ({formatBytes(message.fileSize)})</span>}
     </a>
+  );
+}
+
+// Renders message text with URLs turned into clickable links, in place.
+function linkifyText(text: string) {
+  return splitByUrls(text).map((seg, i) =>
+    seg.type === "url" ? (
+      <a key={i} class="msg-link" href={seg.value} target="_blank" rel="noopener noreferrer">
+        {seg.value}
+      </a>
+    ) : (
+      seg.value
+    ),
   );
 }
 
@@ -242,6 +257,8 @@ export function MessageBubble(props: {
   const editedMark = message.editedAt !== undefined && (
     <span class="msg-edited">{t("common.edited")}</span>
   );
+  const firstUrl =
+    message.kind === "text" ? extractHttpUrls(message.text ?? "")[0] : undefined;
   const body = editing ? (
     <div class="msg-edit">
       <textarea
@@ -269,7 +286,12 @@ export function MessageBubble(props: {
       </div>
     </div>
   ) : message.kind === "text" ? (
-    <p class={display === "list" ? "msg-text" : "bubble-text"}>{message.text}</p>
+    <>
+      <p class={display === "list" ? "msg-text" : "bubble-text"}>{linkifyText(message.text ?? "")}</p>
+      {/* Only the first URL gets a card — a wall of cards for a multi-link
+          message would overwhelm the bubble. */}
+      {firstUrl && <LinkPreviewCard url={firstUrl} />}
+    </>
   ) : (
     <MediaContent message={message} onMaximize={onMaximize} />
   );

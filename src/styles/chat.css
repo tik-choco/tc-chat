@@ -629,6 +629,120 @@
   text-decoration: underline;
 }
 
+/* Linkified URL inside message text — inherits the bubble's text color so it
+   reads correctly on both the accent-filled "own" bubble and the plain
+   "other" one, with just an underline to signal it's clickable. */
+.msg-link {
+  color: inherit;
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.msg-link:hover {
+  opacity: 0.85;
+}
+
+/* Link-preview card, rendered below linkified text. Works in both list rows
+   and chat bubbles: capped to a comfortable reading width but never wider
+   than its container. */
+.link-card {
+  display: block;
+  margin-top: 0.4rem;
+  max-width: 320px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  overflow: hidden;
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease);
+}
+
+.link-card:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-alt);
+}
+
+/* Own bubbles fill with the accent gradient, so the card needs its own
+   surface + a lighter border to stay legible instead of blending in. */
+.bubble--own .link-card {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: inherit;
+}
+
+.bubble--own .link-card:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.link-card-image {
+  display: block;
+  width: 100%;
+  max-height: 160px;
+  object-fit: cover;
+}
+
+.link-card-body {
+  padding: 0.5rem 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.link-card-title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  word-break: break-word;
+  /* Fallback (no title) shows the raw URL, which can run long — clamp it too. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.link-card-desc {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.bubble--own .link-card-desc {
+  color: inherit;
+  opacity: 0.85;
+}
+
+.link-card-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.1rem;
+}
+
+.link-card-favicon {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.link-card-domain {
+  font-size: 0.7rem;
+  color: var(--text-subtle);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bubble--own .link-card-domain {
+  color: inherit;
+  opacity: 0.75;
+}
+
 /* Clickable image thumbnail: a bare button wrapper that maximizes on click. */
 .bubble-media-zoom {
   display: block;
