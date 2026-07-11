@@ -1,0 +1,191 @@
+/* ============================================================
+   Responsive layer — phones & small tablets (<= 768px).
+   The desktop layout is left untouched; every rule here only
+   engages on a narrow viewport. It does three things:
+     1. turns the fixed 272px sidebar into an off-canvas drawer
+        (transform-animated overlay + backdrop + hamburger),
+     2. tightens the desktop 1.25rem gutters so content breathes,
+     3. grows touch targets and respects the iOS safe areas.
+   Mirrors the drawer pattern used across the tik-choco suite
+   (see ../tc-note styles/layout.css).
+   ============================================================ */
+
+/* Desktop-hidden drawer machinery. The backdrop and the room-tabs
+   hamburger only exist on mobile; they are revealed inside the media
+   query below. Declaring them here (display:none) keeps the markup
+   inert on desktop without a JS branch. */
+.sidebar-backdrop {
+  display: none;
+}
+
+.room-tabs-menu {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  /* --- Sidebar → off-canvas drawer ---------------------------------
+     Fixed and slid out by default; the .sidebar--open class (toggled
+     from the hamburger) brings it in. We animate transform, not width,
+     so the panel never drags the chat through unreadable in-between
+     widths. It floats above the content on its own elevation. */
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 30;
+    width: min(86vw, 320px);
+    min-width: 0;
+    transform: translateX(-100%);
+    box-shadow: var(--shadow-3);
+    transition: transform var(--dur) var(--ease-out);
+    padding-top: env(safe-area-inset-top);
+    overscroll-behavior: contain;
+  }
+
+  .sidebar--open {
+    transform: translateX(0);
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 25;
+    border: none;
+    padding: 0;
+    background: var(--scrim);
+    cursor: pointer;
+    animation: fade-in var(--dur-fast) var(--ease) both;
+  }
+
+  /* Hamburger lives in the always-present room-tabs bar, so a tap opens
+     the drawer from either the chat or the board tab. */
+  .room-tabs-menu {
+    display: inline-grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    flex: none;
+    margin-right: 0.1rem;
+    border: none;
+    border-radius: var(--radius-s);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 1.2rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .room-tabs-menu:hover {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+
+  /* --- Compact header controls -------------------------------------
+     The room title and the voice / screen-share / VRChat controls used
+     to fight for one narrow row and wrapped into an overlapping mess.
+     On mobile the controls collapse to their emoji (labels hidden, see
+     .btn-label spans in VoicePanel / ScreenShareView), so the title
+     keeps its space and the bar stays a single tidy row. */
+  .btn-label {
+    display: none;
+  }
+
+  .topbar {
+    gap: 0.5rem;
+    min-height: 52px;
+  }
+
+  .topbar-actions {
+    flex-wrap: nowrap;
+    gap: 0.3rem;
+  }
+
+  .topbar-actions .voice-btn,
+  .topbar-actions .pill-btn {
+    padding: 0.45rem 0.6rem;
+  }
+
+  /* Redundant on mobile — the participant chips already show the call. */
+  .voice-status {
+    display: none;
+  }
+
+  /* --- Tighter gutters --------------------------------------------- */
+  .topbar,
+  .board-header,
+  .board-toolbar,
+  .message-input,
+  .chat-scroll,
+  .board-scroll {
+    padding-left: 0.9rem;
+    padding-right: 0.9rem;
+  }
+
+  .room-tabs {
+    align-items: center;
+    padding-left: 0.55rem;
+    padding-right: 0.55rem;
+  }
+
+  /* Let messages and cards use more of a narrow screen. Meta (time/verified)
+     now sits beside the bubble via .bubble-line rather than inside it, so it
+     needs a touch more room than before to avoid squeezing bubble text. */
+  .bubble-col {
+    max-width: 86%;
+  }
+
+  .node-composer,
+  .board-node--root {
+    padding: var(--space-3);
+  }
+
+  /* --- Safe areas: keep the composer clear of the home indicator --- */
+  .message-input {
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+  }
+
+  /* --- Comfortable touch targets ----------------------------------- */
+  .room-item {
+    padding-top: 0.6rem;
+    padding-bottom: 0.6rem;
+    font-size: 0.95rem;
+  }
+
+  .room-leave {
+    width: 34px;
+    height: 34px;
+  }
+
+  .room-tab {
+    padding: 0.6rem 0.8rem;
+  }
+
+  .icon-btn {
+    width: 42px;
+    height: 42px;
+  }
+
+  .member-item {
+    padding-top: 0.45rem;
+    padding-bottom: 0.45rem;
+  }
+
+  /* --- Modals become near-full-width sheets on tiny screens -------- */
+  .modal-overlay {
+    padding: 0.75rem;
+    align-items: flex-end;
+  }
+
+  .modal {
+    max-width: none;
+    max-height: 90vh;
+    padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom));
+  }
+}
+
+/* Very small phones: drop the sidebar's fixed cap so it never overflows. */
+@media (max-width: 360px) {
+  .sidebar {
+    width: 92vw;
+  }
+}

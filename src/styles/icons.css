@@ -1,0 +1,77 @@
+/* ============================================================
+   Icon system — Lucide line icons (lucide-preact) replacing the
+   old emoji glyphs, matching the tik-choco suite (see
+   ../tc-pdf-viewer, which uses the same library). Icons stroke in
+   `currentColor`, so they inherit each control's text color for
+   free. These rules only handle alignment: icon-only controls
+   center their glyph; icon+label controls sit on one row with a
+   small, consistent gap.
+   ============================================================ */
+
+svg.lucide {
+  flex: none;
+  vertical-align: middle;
+}
+
+/* Icon + text controls: single centered row with a consistent gap. */
+.room-tab,
+.segmented-btn,
+.voice-btn,
+.voice-status,
+.pill-btn,
+.send-btn,
+.composer-kind-btn,
+.board-empty-cta,
+.copy-line-btn,
+.bubble-file,
+.board-header-titles h2,
+.modal-title-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Icon-only controls that don't already center via grid. */
+.reaction-add,
+.storage-picker-cancel,
+.modal-close {
+  display: inline-grid;
+  place-items: center;
+}
+
+/* The topbar room "#" used to be baseline-aligned text; the svg
+   version wants centering against the title. */
+.topbar-title {
+  align-items: center;
+}
+
+/* Room-list rows: leading icon + ellipsizing name. */
+.room-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.room-item .room-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.room-icon {
+  color: var(--text-subtle);
+}
+
+.room-item--active .room-icon {
+  color: var(--primary);
+}
+
+/* Small inline badges/chips keep their glyph centered. */
+.bubble-verified,
+.voice-chip-mic {
+  display: inline-flex;
+  align-items: center;
+}
+
+.bubble-verified {
+  color: var(--primary);
+}

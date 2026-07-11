@@ -1,0 +1,200 @@
+/* Developer-mode live log panel (see DevConsole.tsx / lib/devLog.ts). */
+.dev-console {
+  position: fixed;
+  left: var(--space-4);
+  right: var(--space-4);
+  bottom: var(--space-4);
+  z-index: 90;
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  height: 280px;
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-3);
+  overflow: hidden;
+  font-size: 0.78rem;
+}
+
+.dev-console--collapsed {
+  height: auto;
+}
+
+.dev-console-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.dev-console-title {
+  font-weight: 600;
+}
+
+.dev-console-count {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  background: var(--surface-3);
+  border-radius: var(--radius-pill);
+  padding: 0.1rem 0.5rem;
+}
+
+.dev-console-header-spacer {
+  flex: 1;
+}
+
+.dev-console-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  padding: 0.3rem;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.dev-console-btn:hover {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.dev-console-toolbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.dev-console-search {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 1;
+  min-width: 140px;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--bg);
+  color: var(--text-subtle);
+}
+
+.dev-console-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.78rem;
+}
+
+.dev-console-levels {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.dev-console-level {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-subtle);
+  border-radius: var(--radius-pill);
+  padding: 0.15rem 0.55rem;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  opacity: 0.55;
+}
+
+.dev-console-level--active {
+  opacity: 1;
+}
+
+.dev-console-level--log.dev-console-level--active { color: var(--text); border-color: var(--border-strong); }
+.dev-console-level--info.dev-console-level--active { color: var(--primary); border-color: var(--primary-border); background: var(--primary-soft); }
+.dev-console-level--warn.dev-console-level--active { color: #b7791f; border-color: #e0b756; background: rgba(224, 183, 86, 0.12); }
+.dev-console-level--error.dev-console-level--active { color: var(--danger-text); border-color: var(--danger-border); background: var(--danger-soft); }
+.dev-console-level--debug.dev-console-level--active { color: var(--text-subtle); border-color: var(--border-strong); }
+
+.dev-console-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--mono);
+  background: var(--bg);
+}
+
+.dev-console-empty {
+  color: var(--text-subtle);
+  padding: var(--space-3);
+  text-align: center;
+}
+
+.dev-console-line {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  padding: 0.12rem 0;
+  border-bottom: 1px solid var(--border);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.dev-console-line-time {
+  flex: none;
+  color: var(--text-subtle);
+  font-size: 0.68rem;
+}
+
+.dev-console-line-level {
+  flex: none;
+  font-size: 0.66rem;
+  font-weight: 700;
+  width: 3.4em;
+}
+
+.dev-console-line--warn .dev-console-line-level { color: #b7791f; }
+.dev-console-line--error .dev-console-line-level,
+.dev-console-line--error .dev-console-line-text { color: var(--danger-text); }
+.dev-console-line--debug .dev-console-line-level { color: var(--text-subtle); }
+.dev-console-line--info .dev-console-line-level { color: var(--primary); }
+
+.dev-console-line-text {
+  color: var(--text);
+  flex: 1;
+  min-width: 0;
+}
+
+.dev-console-jump {
+  position: absolute;
+  bottom: var(--space-3);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 1px solid var(--primary-border);
+  background: var(--primary);
+  color: var(--on-primary);
+  border-radius: var(--radius-pill);
+  padding: 0.3rem 0.9rem;
+  font-size: 0.72rem;
+  cursor: pointer;
+  box-shadow: var(--shadow-2);
+}
+
+@media (max-width: 640px) {
+  .dev-console {
+    left: var(--space-2);
+    right: var(--space-2);
+    bottom: var(--space-2);
+    height: 220px;
+  }
+}

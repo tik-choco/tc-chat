@@ -1,0 +1,120 @@
+/* Room calendar (CalendarView/CalendarEventRow/CalendarEventComposer) and the
+   personal calendar (PersonalCalendarPanel). Builds on board.css's .board/
+   .node-composer/.board-node-action shells — these rules cover what's unique
+   to events: the datetime fields, the flat event row, and day grouping. */
+
+.event-composer-row {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.event-composer-field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  color: var(--text-subtle);
+}
+
+.event-day-group {
+  margin-bottom: 1rem;
+}
+
+.event-day-group--past {
+  opacity: 0.75;
+}
+
+.event-day-label {
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.event-past-toggle {
+  margin: 0.5rem 0 1rem;
+}
+
+.event-row {
+  display: flex;
+  gap: 0.65rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.event-row:last-child {
+  border-bottom: none;
+}
+
+.event-row-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.event-row-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.event-row-time {
+  font-size: 0.8rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.event-row-title {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text-h);
+}
+
+.event-row-location {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.82rem;
+  color: var(--text-subtle);
+}
+
+.event-row-text {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+.event-row-author {
+  margin: 0.15rem 0 0;
+  font-size: 0.76rem;
+  color: var(--text-subtle);
+}
+
+.event-row-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.3rem;
+}
+
+/* ---- Personal calendar panel ---- */
+.personal-calendar-panel {
+  max-width: 520px;
+}
+
+.personal-calendar-scroll {
+  margin-top: 0.75rem;
+  max-height: 55vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}

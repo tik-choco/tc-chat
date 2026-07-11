@@ -1,0 +1,563 @@
+/* Recursive board: room tabs, toolbar, composer, and the self-similar
+   BoardNodeView tree (recruitment cards, thread roots, nested comments). */
+
+.room-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  height: 100%;
+  min-width: 0;
+}
+
+.room-tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.5rem 1.25rem 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.room-tab {
+  border: none;
+  background: transparent;
+  padding: 0.5rem 0.9rem;
+  border-radius: 8px 8px 0 0;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.room-tab:hover {
+  background: var(--accent-bg);
+}
+
+.room-tab--active {
+  color: var(--accent);
+  font-weight: 600;
+  background: var(--accent-bg);
+}
+
+.room-content-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+/* ---- Board shell ---- */
+.board {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  height: 100%;
+  min-width: 0;
+}
+
+.board-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.board-header-titles {
+  min-width: 0;
+}
+
+.board-header-titles h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--text-h);
+}
+
+.board-subtitle {
+  margin: 0.1rem 0 0;
+  font-size: 0.72rem;
+  opacity: 0.6;
+}
+
+.board-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1.25rem;
+}
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  padding: 3px;
+  gap: 2px;
+  background: var(--surface-2);
+}
+
+.segmented-btn {
+  border: none;
+  background: transparent;
+  padding: 0.35rem 0.85rem;
+  border-radius: calc(var(--radius-m) - 3px);
+  color: var(--text-subtle);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 550;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
+}
+
+.segmented-btn:hover {
+  color: var(--text);
+}
+
+.segmented-btn--active {
+  background: var(--surface);
+  color: var(--primary);
+  font-weight: 650;
+  box-shadow: var(--shadow-1);
+}
+
+.board-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.board-empty {
+  margin: 3rem auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  opacity: 0.85;
+}
+
+.board-empty p {
+  margin: 0;
+  opacity: 0.65;
+}
+
+.board-empty-cta {
+  border: 1px dashed var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 0.5rem 1.1rem;
+  cursor: pointer;
+}
+
+/* ---- tc-note article import chip (note-article shared-bus topic) ----
+   Deliberately subtle: a dashed pill, not a banner — it's an offer, not an
+   interruption. Mirrors .reaction-add's restrained affordance language. */
+.board-import-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 1.25rem 0.5rem;
+}
+
+.board-import-chip-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px dashed var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 0.35rem 0.85rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+  max-width: 100%;
+}
+
+.board-import-chip-main span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-import-chip-dismiss {
+  border: none;
+  background: transparent;
+  color: var(--text-subtle);
+  opacity: 0.6;
+  cursor: pointer;
+  padding: 0.3rem;
+  border-radius: 999px;
+  flex: none;
+}
+
+.board-import-chip-dismiss:hover {
+  opacity: 1;
+  color: var(--text);
+}
+
+/* ---- Node composer ---- */
+.node-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.node-composer--reply {
+  margin-top: 0.5rem;
+  padding: 0.6rem 0.75rem;
+}
+
+.composer-kind-toggle {
+  display: inline-flex;
+  gap: 0.35rem;
+}
+
+.composer-kind-btn {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 0.3rem 0.85rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+
+.composer-kind-btn--active {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.node-composer input,
+.node-composer textarea {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+  width: 100%;
+}
+
+.node-composer input:focus,
+.node-composer textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+.composer-title {
+  font-weight: 600;
+}
+
+.composer-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.composer-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.composer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.composer-cancel {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 0.55rem 1.05rem;
+  cursor: pointer;
+}
+
+/* ---- Recursive node ---- */
+.board-node {
+  min-width: 0;
+}
+
+.board-node--root {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  padding: var(--space-4);
+  transition: box-shadow var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+
+.board-node--root:hover {
+  box-shadow: var(--shadow-2);
+}
+
+.board-node-main {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+
+.board-node-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.board-node-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.board-node-name {
+  font-weight: 600;
+  color: var(--text-h);
+  font-size: 0.9rem;
+}
+
+.board-node-badge {
+  font-size: 0.66rem;
+  font-weight: 700;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.board-node-time {
+  font-size: 0.7rem;
+  opacity: 0.55;
+}
+
+.board-node-title {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--text-h);
+  word-break: break-word;
+}
+
+.board-node-title--sm {
+  font-size: 0.95rem;
+}
+
+.board-node-text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-h);
+}
+
+.node-chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.node-chips li {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+}
+
+.node-chips--roles li {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.node-chips--tags li {
+  background: var(--bg-alt);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.board-node-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.1rem;
+}
+
+.board-node-action {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.78rem;
+  padding: 0.15rem 0;
+  opacity: 0.8;
+}
+
+.board-node-action:hover {
+  color: var(--accent);
+  opacity: 1;
+}
+
+.board-node-action--muted {
+  opacity: 0.6;
+}
+
+.board-node-action--danger:hover {
+  color: var(--danger-text);
+}
+
+/* Author-tombstoned node: keep its slot (children stay threaded), mute it. */
+.board-node-deleted {
+  margin: 0;
+  font-size: 0.85rem;
+  font-style: italic;
+  color: var(--text-subtle);
+}
+
+.board-node-edited {
+  font-size: 0.7rem;
+  opacity: 0.55;
+  font-style: normal;
+}
+
+/* Inline editor for one's own node (mirrors the composer inputs). */
+.board-node-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.board-node-edit input,
+.board-node-edit textarea {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+  width: 100%;
+}
+
+.board-node-edit input:focus,
+.board-node-edit textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+.board-node-edit-title {
+  font-weight: 600;
+}
+
+.board-node-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+/* Nested replies: indentation + a thread line, compounding with depth. */
+.board-node-children {
+  margin: 0.5rem 0 0 0.4rem;
+  padding-left: 0.9rem;
+  border-left: 2px solid var(--thread-line);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.board-node--reply {
+  padding-top: 0.15rem;
+}
+
+/* ---- Reactions ---- */
+.reaction-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.1rem;
+}
+
+.reaction-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  border: 1px solid var(--border);
+  background: var(--bg-alt);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.reaction-chip--mine {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.reaction-chip-count {
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.reaction-add-wrap {
+  position: relative;
+}
+
+.reaction-add {
+  border: 1px dashed var(--border);
+  background: transparent;
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
+  cursor: pointer;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.reaction-add:hover {
+  opacity: 1;
+  border-color: var(--accent);
+}
+
+.reaction-palette {
+  position: absolute;
+  z-index: 20;
+  bottom: calc(100% + 6px);
+  left: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.15rem;
+  padding: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-md);
+}
+
+.reaction-palette-btn {
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  padding: 0.25rem;
+  cursor: pointer;
+  font-size: 1.1rem;
+}
+
+.reaction-palette-btn:hover {
+  background: var(--accent-bg);
+}

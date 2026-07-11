@@ -1,0 +1,425 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  width: 272px;
+  min-width: 272px;
+  height: 100%;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-brand-mark {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-s);
+  background: linear-gradient(135deg, var(--primary), var(--primary-active));
+  color: var(--on-primary);
+  font-size: 1rem;
+  box-shadow: var(--shadow-1);
+  flex-shrink: 0;
+}
+
+.sidebar-brand-name {
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.sidebar-brand-actions {
+  margin-left: auto;
+  display: flex;
+  gap: var(--space-1);
+}
+
+.theme-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.theme-toggle:hover {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: calc(100% - var(--space-4) * 2);
+  margin: var(--space-3) var(--space-4) 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+
+.sidebar-user:hover {
+  border-color: var(--primary-border);
+  box-shadow: var(--shadow-1);
+}
+
+.sidebar-user-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sidebar-user-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-user-sub {
+  font-size: 0.72rem;
+  color: var(--text-subtle);
+}
+
+.sidebar-section {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sidebar-section--grow {
+  flex: 1;
+}
+
+.sidebar-section h3 {
+  margin: 0 0 var(--space-1);
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.sidebar-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-1);
+}
+
+.sidebar-section-head h3 {
+  margin: 0;
+}
+
+/* Reveals the join-room form on demand instead of it sitting open under
+   every room list all the time. */
+.sidebar-add-btn {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border: none;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+}
+
+.sidebar-add-btn:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.sidebar-add-btn--active {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.room-list,
+.member-list,
+.friend-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.room-list li,
+.friend-list li {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.room-item {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border: none;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.room-item:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.room-item--active {
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.room-item-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.room-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+/* The room's shared join key, shown under a custom display name so it stays
+   copy-/shareable even when the label differs from the id. */
+.room-id {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  color: var(--text-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.room-item--active .room-id {
+  color: var(--primary);
+  opacity: 0.75;
+}
+
+.room-copy,
+.room-leave {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border: none;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.room-copy:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.room-copy--copied {
+  color: var(--success);
+}
+
+.room-leave:hover {
+  background: var(--danger-soft);
+  color: var(--danger-text);
+}
+
+.room-join-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+/* Room ID input + its regenerate button share a row; the input grows, the
+   button stays a fixed-width square. */
+.room-id-row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.room-id-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.room-join-form .room-id-regenerate {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: var(--text-subtle);
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.room-join-form .room-id-regenerate:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.room-join-form input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.room-join-form input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+.room-join-form button {
+  padding: 0.5rem 0.8rem;
+  border: none;
+  border-radius: var(--radius-s);
+  background: var(--primary);
+  color: var(--on-primary);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  box-shadow: var(--shadow-1);
+}
+
+.room-join-form button:hover {
+  background: var(--primary-hover);
+}
+
+.form-error {
+  margin: var(--space-2) 0 0;
+  font-size: 0.75rem;
+  color: var(--danger-text);
+}
+
+.member-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--radius-s);
+  color: var(--text);
+  font-size: 0.88rem;
+}
+
+/* A member row that opens the peer's profile card when clicked. */
+.member-item--btn {
+  width: 100%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  font-size: 0.88rem;
+}
+
+.member-item--btn:hover {
+  background: var(--surface-2);
+}
+
+.member-empty,
+.friend-empty {
+  padding: 0.35rem 0.5rem;
+  font-size: 0.82rem;
+  color: var(--text-subtle);
+}
+
+/* Count of incoming friend requests, shown next to the section heading. */
+.request-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* "Received" / "Sent" label under a pending request's name. */
+.request-tag {
+  font-size: 0.68rem;
+  color: var(--text-subtle);
+}
+
+/* Wraps a friend row's icon so the online dot can be positioned relative to it. */
+.friend-avatar-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.online-dot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--success);
+  border: 2px solid var(--surface);
+}
+
+/* Unread message count, pinned to the right edge of a room/DM row. */
+.unread-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: auto;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+}

@@ -1,0 +1,118 @@
+.voice-panel {
+  display: flex;
+  align-items: center;
+}
+
+.voice-btn {
+  border: 1px solid var(--border);
+  background: var(--bg-alt);
+  color: var(--text-h);
+  border-radius: 20px;
+  padding: 0.4rem 0.9rem;
+  cursor: pointer;
+}
+
+.voice-btn--join {
+  background: var(--success-bg);
+  color: var(--success);
+  border-color: transparent;
+}
+
+.voice-btn--leave {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border-color: transparent;
+}
+
+.voice-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.voice-status {
+  font-size: 0.85rem;
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+.voice-participants {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.voice-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0.5rem 0.1rem 0.15rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  font-size: 0.78rem;
+  max-width: 140px;
+}
+
+.voice-chip--self {
+  border-color: var(--success);
+  background: var(--success-bg);
+}
+
+/* Remote chips open the peer's profile card; keep the pill look, add a cursor. */
+.voice-chip--btn {
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  font-size: 0.78rem;
+}
+
+.voice-chip--btn:hover {
+  border-color: var(--primary);
+  background: var(--surface-2);
+}
+
+.voice-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.voice-chip-mic {
+  font-size: 0.7rem;
+}
+
+.screen-share-panel {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.screen-share-error {
+  font-size: 0.85rem;
+  color: var(--danger);
+}
+
+/* Non-blocking hint (e.g. "sharing without audio") -- distinct from
+ * .screen-share-error since nothing actually failed, the browser just gave
+ * us less than we asked for. */
+.screen-share-hint {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.screen-share-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.screen-share-video {
+  max-width: 240px;
+  max-height: 160px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-alt);
+}
