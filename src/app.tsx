@@ -14,6 +14,8 @@ import "./styles/devConsole.css";
 import "./styles/onboarding.css";
 import "./styles/calendar.css";
 import "./styles/gif.css";
+import "./styles/gallery.css";
+import "./styles/markdown.css";
 
 import { UsernameGate } from "./components/UsernameGate";
 import { Sidebar } from "./components/Sidebar";
@@ -32,6 +34,7 @@ import { useScreenShare } from "./hooks/useScreenShare";
 import { useVideoCall } from "./hooks/useVideoCall";
 import { usePostStream } from "./hooks/usePostStream";
 import { useCalendarEvents } from "./hooks/useCalendarEvents";
+import { useMediaGallery } from "./hooks/useMediaGallery";
 import { usePersonalEvents } from "./hooks/usePersonalEvents";
 import { useHistorySync } from "./hooks/useHistorySync";
 import { useMessageAlerts } from "./hooks/useMessageAlerts";
@@ -123,6 +126,8 @@ export function App() {
     status === "joined" ? activeRoomId : null,
     displayName,
   );
+  // The shared media gallery is the "gallery" surface of the same post engine.
+  const gallery = useMediaGallery(status === "joined" ? activeRoomId : null, displayName);
   // The global room is joinable by anyone, so voice/screen share/video call
   // (which would otherwise broadcast to whoever happens to be present) are
   // disabled there.
@@ -373,6 +378,17 @@ export function App() {
           onCreate: createEvent,
           onEdit: editEvent,
           onDelete: deleteEvent,
+        }}
+        galleryProps={{
+          roomName,
+          localNodeId: nodeId,
+          items: gallery.items,
+          ready: status === "joined",
+          directory,
+          onAddFiles: gallery.addFiles,
+          onAddStoredFile: gallery.addStoredFile,
+          onToggleReaction: gallery.toggleReaction,
+          onDelete: gallery.deleteItem,
         }}
       />
 

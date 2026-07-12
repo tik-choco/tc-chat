@@ -25,6 +25,7 @@ describe("loadTcStorageFiles", () => {
     expect(loadTcStorageFiles(fakeStorage(snapshot))).toEqual([
       {
         fileId: "file-1",
+        folderId: "folder-1",
         name: "cat.png",
         mimeType: "image/png",
         size: 1234,

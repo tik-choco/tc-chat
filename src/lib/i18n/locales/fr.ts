@@ -103,6 +103,7 @@ export const fr: Messages = {
     chatTab: "Chat",
     boardTab: "Forum",
     calendarTab: "Calendrier",
+    galleryTab: "Galerie",
     dmNotifBody: "Tu as un nouveau message",
   },
 
@@ -151,6 +152,14 @@ export const fr: Messages = {
   },
 
   media: {
+    // MediaGalleryView
+    galleryEmpty: "Aucune photo ni vidéo pour le moment",
+    galleryEmptyHint: "Partage la première",
+    galleryUpload: "Envoyer",
+    galleryAddFromStorage: "Ajouter depuis tc-storage",
+    galleryDeleteConfirm: "Supprimer ce média ?",
+    gallerySharedBy: "Partagé par {name}",
+    galleryStoredFileFailed: "Impossible de déchiffrer le fichier tc-storage (ce navigateur n'a pas la clé de partage)",
     // Lightbox
     image: "Image",
     video: "Vidéo",

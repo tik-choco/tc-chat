@@ -59,6 +59,60 @@ describe("chatStore", () => {
     expect(loadPosts("calendar", "r1")[0].startsAt).toBe(500);
   });
 
+  it("appendPost/loadPosts round-trips gallery posts under their own localStorage key", () => {
+    appendPost(
+      post({
+        id: "g1",
+        roomId: "r1",
+        surface: "gallery",
+        kind: "media",
+        text: undefined,
+        mimeType: "image/png",
+        fileName: "pic.png",
+        fileSize: 123,
+      }),
+    );
+
+    const items = loadPosts("gallery", "r1");
+    expect(items).toHaveLength(1);
+    expect(items[0].id).toBe("g1");
+    expect(items[0].mimeType).toBe("image/png");
+    expect(localStorage.getItem("tc-chat:gallery:r1")).not.toBeNull();
+  });
+
+  it("keeps the gallery surface separate from chat in the same room", () => {
+    appendPost(post({ id: "c1", roomId: "r1", surface: "chat", text: "chat msg" }));
+    appendPost(
+      post({ id: "g1", roomId: "r1", surface: "gallery", kind: "media", text: undefined }),
+    );
+    expect(loadPosts("chat", "r1").map((p) => p.id)).toEqual(["c1"]);
+    expect(loadPosts("gallery", "r1").map((p) => p.id)).toEqual(["g1"]);
+  });
+
+  it("applyPostDelete tombstones a gallery post", () => {
+    appendPost(
+      post({
+        id: "g2",
+        roomId: "r1",
+        surface: "gallery",
+        fromId: "author",
+        kind: "media",
+        text: undefined,
+        mimeType: "image/png",
+        fileName: "pic.png",
+        fileSize: 123,
+      }),
+    );
+    applyPostDelete("gallery", "r1", "g2", "author");
+
+    const tomb = loadPosts("gallery", "r1").find((p) => p.id === "g2")!;
+    expect(tomb.deleted).toBe(true);
+    expect(tomb.cid).toBe("");
+    expect(tomb.mimeType).toBeUndefined();
+    expect(tomb.fileName).toBeUndefined();
+    expect(tomb.fileSize).toBeUndefined();
+  });
+
   it("validates room ids", () => {
     expect(isValidRoomId("valid-room_123")).toBe(true);
     expect(isValidRoomId("")).toBe(false);

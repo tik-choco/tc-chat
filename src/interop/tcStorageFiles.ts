@@ -32,6 +32,9 @@ export type TcStorageSnapshot = {
 
 export interface TcStorageFileEntry {
   fileId: string;
+  /** tc-storage folder id — the lookup key for the folder's decryption
+   * passphrase in tc-storage's key store (see tcStorageContent.ts). */
+  folderId: string;
   name: string;
   mimeType: string;
   size: number;
@@ -86,6 +89,7 @@ export function loadTcStorageFiles(
         return cid
           ? {
               fileId: file.id,
+              folderId: file.folderId,
               name: file.name,
               mimeType: file.mimeType,
               size: file.size,

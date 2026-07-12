@@ -103,6 +103,7 @@ export const es: Messages = {
     chatTab: "Chat",
     boardTab: "Foro",
     calendarTab: "Calendario",
+    galleryTab: "Galería",
     dmNotifBody: "Tienes un mensaje nuevo",
   },
 
@@ -151,6 +152,14 @@ export const es: Messages = {
   },
 
   media: {
+    // MediaGalleryView
+    galleryEmpty: "Todavía no hay fotos ni videos",
+    galleryEmptyHint: "Comparte el primero",
+    galleryUpload: "Subir",
+    galleryAddFromStorage: "Agregar desde tc-storage",
+    galleryDeleteConfirm: "¿Eliminar este archivo multimedia?",
+    gallerySharedBy: "Compartido por {name}",
+    galleryStoredFileFailed: "No se pudo descifrar el archivo de tc-storage (este navegador no tiene su clave de descifrado)",
     // Lightbox
     image: "Imagen",
     video: "Video",

@@ -34,6 +34,7 @@ import {
 import { ensureDidIdentity } from "../crypto/didIdentity";
 import { signWireFields, verifyWire } from "../lib/wireSign";
 import type { TcStorageFileEntry } from "../interop/tcStorageFiles";
+import { resolveTcStorageFileContent } from "../interop/tcStorageContent";
 import { newId } from "../lib/util";
 
 interface PostWire extends Record<string, unknown> {
@@ -369,13 +370,27 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
     });
   }
 
-  /** A file already in mistlib storage (from tc-storage) — reuse its CID. */
+  /**
+   * A file saved in tc-storage. Its own CID can't be reused on the wire —
+   * tc-storage stores every file as a passphrase-encrypted envelope that only
+   * this browser's local keys can open (see tcStorageContent.ts) — so posting
+   * one means: decrypt locally, then re-add the PLAINTEXT bytes under a new
+   * CID, exactly like a fresh upload. Sharing into a room is deliberately a
+   * decryption boundary: everyone in the room gets viewable content. Throws
+   * when no local key opens the envelope (the caller surfaces the failure).
+   */
   async function createStoredFile(entry: TcStorageFileEntry) {
     if (!roomId) return;
     const identity = await ensureDidIdentity();
+    const { bytes, mimeType } = await resolveTcStorageFileContent(entry);
+    const cid = await storage_add(entry.name, bytes);
     const id = newId();
     const timestamp = Date.now();
-    const meta = { mimeType: entry.mimeType, fileName: entry.name, fileSize: entry.size };
+    const meta = {
+      mimeType: mimeType || entry.mimeType,
+      fileName: entry.name,
+      fileSize: bytes.byteLength,
+    };
     const unsigned = {
       type: "tc-chat:post" as const,
       surface,
@@ -385,7 +400,7 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
       fromName: localNameRef.current,
       timestamp,
       kind: "file" as const,
-      cid: entry.cid,
+      cid,
       ...meta,
     };
     const wire: PostWire = { ...unsigned, signature: await signWireFields(unsigned) };
@@ -398,7 +413,7 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
       fromName: "自分",
       timestamp,
       kind: "file",
-      cid: entry.cid,
+      cid,
       ...meta,
     });
   }
