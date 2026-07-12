@@ -99,6 +99,7 @@ export const ko: Messages = {
     chatTab: "채팅",
     boardTab: "게시판",
     calendarTab: "캘린더",
+    galleryTab: "갤러리",
     dmNotifBody: "새 메시지가 도착했어요",
   },
 
@@ -147,6 +148,14 @@ export const ko: Messages = {
   },
 
   media: {
+    // MediaGalleryView
+    galleryEmpty: "아직 사진이나 동영상이 없어요",
+    galleryEmptyHint: "첫 번째 미디어를 공유해보세요",
+    galleryUpload: "업로드",
+    galleryAddFromStorage: "tc-storage에서 추가",
+    galleryDeleteConfirm: "이 미디어를 삭제하시겠습니까?",
+    gallerySharedBy: "{name}님이 공유함",
+    galleryStoredFileFailed: "tc-storage 파일을 복호화할 수 없습니다 (이 브라우저에 공유 키가 없습니다)",
     // Lightbox
     image: "이미지",
     video: "동영상",

@@ -1,0 +1,140 @@
+/* Room gallery (MediaGalleryView): a responsive image/video grid over the
+   "gallery" surface of the shared post engine. Builds on board.css's .board
+   shell (header/scroll/empty state) — these rules cover what's unique to the
+   grid of media tiles. */
+
+.gallery-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.gallery-status {
+  margin: 3rem auto;
+  opacity: 0.65;
+  font-size: 0.9rem;
+}
+
+.gallery-status--error {
+  margin: 0.75rem 1rem;
+  opacity: 1;
+  color: var(--danger, #e5484d);
+  text-align: center;
+}
+
+.gallery-empty-icon {
+  color: var(--text-subtle);
+  opacity: 0.6;
+}
+
+.gallery-empty-hint {
+  font-size: 0.8rem !important;
+  opacity: 0.55;
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.85rem;
+}
+
+.gallery-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  padding: 0.5rem;
+  transition: box-shadow var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+
+.gallery-tile:hover {
+  box-shadow: var(--shadow-2);
+}
+
+.gallery-tile-media {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-m);
+  overflow: hidden;
+  background: var(--bg-alt);
+  cursor: zoom-in;
+  line-height: 0;
+}
+
+.gallery-tile-media:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.gallery-tile-thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
+
+.gallery-tile-placeholder {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  font-size: 0.78rem;
+  opacity: 0.6;
+}
+
+.gallery-tile-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.gallery-tile-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-h);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gallery-tile-time {
+  font-size: 0.68rem;
+  opacity: 0.55;
+  flex: none;
+}
+
+.gallery-tile-delete {
+  flex: none;
+  border: none;
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+  padding: 0.15rem;
+  border-radius: var(--radius-xs);
+  opacity: 0.75;
+}
+
+.gallery-tile-delete:hover {
+  opacity: 1;
+  color: var(--danger-text);
+}
+
+@media (max-width: 640px) {
+  .gallery-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 0.6rem;
+  }
+}

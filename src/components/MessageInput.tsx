@@ -7,6 +7,11 @@ import { VoiceRecorder } from "./VoiceRecorder";
 import { GifPicker } from "./GifPicker";
 import { useT } from "../lib/i18n";
 
+// Auto-grow cap: roughly 6 lines of text at the input's font/line-height,
+// plus its vertical padding. Kept in sync with the max-height set on
+// .text-input in chat.css — that CSS cap is the real backstop if this drifts.
+const MAX_TEXTAREA_HEIGHT = 140;
+
 export function MessageInput(props: {
   disabled: boolean;
   onTyping?: () => void;
@@ -22,13 +27,31 @@ export function MessageInput(props: {
   const [voiceActive, setVoiceActive] = useState(false);
   const [showGifPicker, setShowGifPicker] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  function submit(e: JSX.TargetedEvent<HTMLFormElement>) {
-    e.preventDefault();
+  function resizeTextarea() {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, MAX_TEXTAREA_HEIGHT) + "px";
+  }
+
+  function sendText() {
     const trimmed = text.trim();
     if (!trimmed) return;
     props.onSendText(trimmed);
     setText("");
+    // Collapse back to a single line; scrollHeight reflects the now-empty
+    // value once the browser has applied the "auto" reset.
+    const el = textareaRef.current;
+    if (el) {
+      el.style.height = "auto";
+    }
+  }
+
+  function submit(e: JSX.TargetedEvent<HTMLFormElement>) {
+    e.preventDefault();
+    sendText();
   }
 
   function handleFilePick(e: JSX.TargetedEvent<HTMLInputElement>) {
@@ -110,15 +133,27 @@ export function MessageInput(props: {
             >
               <ImagePlay size={20} />
             </button>
-            <input
+            <textarea
+              ref={textareaRef}
               class="text-input"
+              rows={1}
               placeholder={props.disabled ? t("chat.joinRoomPlaceholder") : t("chat.messagePlaceholder")}
               value={text}
               disabled={props.disabled}
               onInput={(e) => {
-                const value = (e.target as HTMLInputElement).value;
+                const value = (e.target as HTMLTextAreaElement).value;
                 setText(value);
                 if (value.trim()) props.onTyping?.();
+                resizeTextarea();
+              }}
+              onKeyDown={(e) => {
+                // IME composition (e.g. Japanese kana→kanji) commits via
+                // Enter — that keystroke must not also send the message.
+                if (e.isComposing || e.keyCode === 229) return;
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  sendText();
+                }
               }}
             />
             <button type="submit" class="send-btn" disabled={props.disabled || !text.trim()}>

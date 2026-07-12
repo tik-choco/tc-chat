@@ -49,6 +49,14 @@ const ja = {
   cautionDontShowAgain: "今後表示しない",
   cautionContinue: "続行",
   cautionCancel: "キャンセル",
+  // MediaGalleryView
+  galleryEmpty: "まだ写真や動画がありません",
+  galleryEmptyHint: "最初のメディアを共有しましょう",
+  galleryUpload: "アップロード",
+  galleryAddFromStorage: "tc-storage から追加",
+  galleryDeleteConfirm: "このメディアを削除しますか？",
+  gallerySharedBy: "{name} が共有",
+  galleryStoredFileFailed: "tc-storage のファイルを復号できませんでした（このブラウザに共有キーがありません）",
 };
 
 const en: typeof ja = {
@@ -92,6 +100,13 @@ const en: typeof ja = {
   cautionDontShowAgain: "Don't show this again",
   cautionContinue: "Continue",
   cautionCancel: "Cancel",
+  galleryEmpty: "No photos or videos yet",
+  galleryEmptyHint: "Share the first one",
+  galleryUpload: "Upload",
+  galleryAddFromStorage: "Add from tc-storage",
+  galleryDeleteConfirm: "Delete this media?",
+  gallerySharedBy: "Shared by {name}",
+  galleryStoredFileFailed: "Couldn't decrypt the tc-storage file (this browser has no share key for it)",
 };
 
 export const media = { ja, en };

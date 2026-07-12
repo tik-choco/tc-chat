@@ -1,11 +1,12 @@
 import type { ComponentProps } from "preact";
-import { Menu, MessageCircle, LayoutList, CalendarDays } from "lucide-preact";
+import { Menu, MessageCircle, LayoutList, CalendarDays, Images } from "lucide-preact";
 import { ChatWindow } from "./ChatWindow";
 import { ProjectBoard } from "./ProjectBoard";
 import { CalendarView } from "./CalendarView";
+import { MediaGalleryView } from "./MediaGalleryView";
 import { useT } from "../lib/i18n";
 
-export type RoomTab = "chat" | "board" | "calendar";
+export type RoomTab = "chat" | "board" | "calendar" | "gallery";
 
 export function RoomContent(props: {
   tab: RoomTab;
@@ -15,8 +16,17 @@ export function RoomContent(props: {
   chatWindowProps: ComponentProps<typeof ChatWindow>;
   boardProps: ComponentProps<typeof ProjectBoard>;
   calendarProps: ComponentProps<typeof CalendarView>;
+  galleryProps: ComponentProps<typeof MediaGalleryView>;
 }) {
-  const { tab, onChangeTab, onOpenSidebar, chatWindowProps, boardProps, calendarProps } = props;
+  const {
+    tab,
+    onChangeTab,
+    onOpenSidebar,
+    chatWindowProps,
+    boardProps,
+    calendarProps,
+    galleryProps,
+  } = props;
   const t = useT();
   return (
     <div class="room-content">
@@ -53,14 +63,24 @@ export function RoomContent(props: {
           <CalendarDays size={16} />
           {t("chat.calendarTab")}
         </button>
+        <button
+          type="button"
+          class={`room-tab ${tab === "gallery" ? "room-tab--active" : ""}`}
+          onClick={() => onChangeTab("gallery")}
+        >
+          <Images size={16} />
+          {t("chat.galleryTab")}
+        </button>
       </div>
       <div class="room-content-body">
         {tab === "chat" ? (
           <ChatWindow {...chatWindowProps} />
         ) : tab === "board" ? (
           <ProjectBoard {...boardProps} />
-        ) : (
+        ) : tab === "calendar" ? (
           <CalendarView {...calendarProps} />
+        ) : (
+          <MediaGalleryView {...galleryProps} />
         )}
       </div>
     </div>

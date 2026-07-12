@@ -99,6 +99,7 @@ export const zh: Messages = {
     chatTab: "聊天",
     boardTab: "讨论区",
     calendarTab: "日历",
+    galleryTab: "图库",
     dmNotifBody: "你有一条新消息",
   },
 
@@ -147,6 +148,14 @@ export const zh: Messages = {
   },
 
   media: {
+    // MediaGalleryView
+    galleryEmpty: "暂无照片或视频",
+    galleryEmptyHint: "分享第一个吧",
+    galleryUpload: "上传",
+    galleryAddFromStorage: "从 tc-storage 中添加",
+    galleryDeleteConfirm: "确定要删除这个媒体文件吗？",
+    gallerySharedBy: "由 {name} 分享",
+    galleryStoredFileFailed: "无法解密 tc-storage 文件（此浏览器没有对应的共享密钥）",
     // Lightbox
     image: "图片",
     video: "视频",

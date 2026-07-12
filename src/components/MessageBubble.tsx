@@ -5,11 +5,12 @@ import { storage_get } from "../lib/mistClient";
 import { formatBytes, formatTime, shortDid } from "../lib/util";
 import { identityFor, type ProfileDirectory } from "../lib/profileDirectory";
 import { useT } from "../lib/i18n";
-import { extractHttpUrls, splitByUrls } from "../lib/linkPreview";
+import { extractHttpUrls } from "../lib/linkPreview";
 import { Avatar } from "./Avatar";
 import { ReactionBar } from "./ReactionBar";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { LinkPreviewCard } from "./LinkPreviewCard";
+import { MarkdownView } from "./MarkdownView";
 
 const blobUrlCache = new Map<string, string>();
 
@@ -85,19 +86,6 @@ function MediaContent(props: { message: ChatMessage; onMaximize: (messageId: str
       <Paperclip size={14} /> {message.fileName ?? t("chat.file")}
       {message.fileSize !== undefined && <span> ({formatBytes(message.fileSize)})</span>}
     </a>
-  );
-}
-
-// Renders message text with URLs turned into clickable links, in place.
-function linkifyText(text: string) {
-  return splitByUrls(text).map((seg, i) =>
-    seg.type === "url" ? (
-      <a key={i} class="msg-link" href={seg.value} target="_blank" rel="noopener noreferrer">
-        {seg.value}
-      </a>
-    ) : (
-      seg.value
-    ),
   );
 }
 
@@ -268,6 +256,9 @@ export function MessageBubble(props: {
         value={draft}
         onInput={(e) => setDraft((e.target as HTMLTextAreaElement).value)}
         onKeyDown={(e) => {
+          // IME composition (e.g. Japanese) commits kana→kanji conversion via
+          // Enter — that keystroke must not also save the edit.
+          if (e.isComposing || e.keyCode === 229) return;
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             saveEdit();
@@ -287,7 +278,9 @@ export function MessageBubble(props: {
     </div>
   ) : message.kind === "text" ? (
     <>
-      <p class={display === "list" ? "msg-text" : "bubble-text"}>{linkifyText(message.text ?? "")}</p>
+      <div class={`${display === "list" ? "msg-text" : "bubble-text"} md-body`}>
+        <MarkdownView text={message.text ?? ""} />
+      </div>
       {/* Only the first URL gets a card — a wall of cards for a multi-link
           message would overwhelm the bubble. */}
       {firstUrl && <LinkPreviewCard url={firstUrl} />}

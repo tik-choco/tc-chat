@@ -54,6 +54,7 @@ const ja = {
   chatTab: "チャット",
   boardTab: "掲示板",
   calendarTab: "カレンダー",
+  galleryTab: "ギャラリー",
   // useMessageAlerts (desktop notification fallback body)
   dmNotifBody: "新しいメッセージが届きました",
 };
@@ -104,6 +105,7 @@ const en: typeof ja = {
   chatTab: "Chat",
   boardTab: "Board",
   calendarTab: "Calendar",
+  galleryTab: "Gallery",
   dmNotifBody: "You have a new message",
 };
 

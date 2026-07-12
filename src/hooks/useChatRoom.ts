@@ -63,7 +63,11 @@ export function useChatRoom(roomId: string | null, localName: string) {
 
   const sendText = (text: string) => createPost({ parentId: null, kind: "text", text });
   const sendFile = (file: File) => createMedia(file);
-  const sendStoredFile = (entry: TcStorageFileEntry) => createStoredFile(entry);
+  // Fire-and-forget from MessageInput; a stored file whose tc-storage envelope
+  // no local key opens rejects (see createStoredFile) — log instead of leaving
+  // an unhandled rejection.
+  const sendStoredFile = (entry: TcStorageFileEntry) =>
+    createStoredFile(entry).catch((err) => console.error("failed to attach stored file", err));
   const editMessage = (id: string, text: string) => editPost(id, { text });
   const deleteMessage = (id: string) => deletePost(id);
 

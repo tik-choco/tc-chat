@@ -8,6 +8,7 @@ import { Avatar } from "./Avatar";
 import { ReactionBar } from "./ReactionBar";
 import { NodeComposer } from "./NodeComposer";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { MarkdownView } from "./MarkdownView";
 
 function Chips(props: { items?: string[]; variant: string }) {
   if (!props.items || props.items.length === 0) return null;
@@ -131,10 +132,10 @@ export function BoardNodeView(props: {
                 </h3>
               )}
               {node.text && (
-                <p class="board-node-text">
-                  {node.text}
+                <div class="board-node-text md-body">
+                  <MarkdownView text={node.text} />
                   {node.editedAt !== undefined && <span class="board-node-edited"> {t("common.edited")}</span>}
-                </p>
+                </div>
               )}
             </>
           )}

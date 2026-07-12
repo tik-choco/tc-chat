@@ -19,10 +19,10 @@ export interface Reaction {
   fromName: string;
 }
 
-/** Which stream a post belongs to. Chat, board and calendar are separate
- * streams that share this one structure and one distribution engine (see
- * usePostStream). */
-export type PostSurface = "chat" | "board" | "calendar";
+/** Which stream a post belongs to. Chat, board, calendar and gallery are
+ * separate streams that share this one structure and one distribution engine
+ * (see usePostStream). */
+export type PostSurface = "chat" | "board" | "calendar" | "gallery";
 export type PostKind = "text" | "media" | "file" | "project" | "event";
 
 /**
@@ -81,6 +81,7 @@ const POSTS_KEY_PREFIX: Record<PostSurface, string> = {
   chat: "tc-chat:messages:",
   board: "tc-chat:board-nodes:",
   calendar: "tc-chat:calendar-events:",
+  gallery: "tc-chat:gallery:",
 };
 // One reaction index per room, shared by both surfaces: target ids are unique
 // across chat and board, and whichever view knows a target merges it in.
