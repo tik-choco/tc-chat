@@ -39,7 +39,11 @@ export function loadFriends(): Friend[] {
 }
 
 function saveFriends(friends: Friend[]): void {
-  localStorage.setItem(FRIENDS_KEY, JSON.stringify(friends));
+  try {
+    localStorage.setItem(FRIENDS_KEY, JSON.stringify(friends));
+  } catch (error) {
+    console.warn("tc-chat: failed to persist friends list", error);
+  }
 }
 
 /**

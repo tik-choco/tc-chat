@@ -15,6 +15,11 @@ export interface DirectoryProfile {
 export type ProfileDirectory = Record<string, DirectoryProfile>;
 
 const KEY = "tc-chat:profile-directory:v1";
+// The directory accumulates every peer ever seen across every room, for the
+// app's whole lifetime, with no natural cap — bound it so a long-lived
+// install can't grow this key without limit. Least-recently-updated entries
+// (by `updatedAt`) are evicted first.
+const MAX_ENTRIES = 500;
 
 export function loadDirectory(): ProfileDirectory {
   try {
@@ -37,8 +42,17 @@ export function mergeProfile(
 ): ProfileDirectory {
   const existing = directory[did];
   if (existing && existing.updatedAt >= profile.updatedAt) return directory;
-  const next = { ...directory, [did]: profile };
-  localStorage.setItem(KEY, JSON.stringify(next));
+  let next = { ...directory, [did]: profile };
+  const entries = Object.entries(next);
+  if (entries.length > MAX_ENTRIES) {
+    entries.sort((a, b) => b[1].updatedAt - a[1].updatedAt);
+    next = Object.fromEntries(entries.slice(0, MAX_ENTRIES));
+  }
+  try {
+    localStorage.setItem(KEY, JSON.stringify(next));
+  } catch (error) {
+    console.warn("tc-chat: failed to persist profile directory", error);
+  }
   return next;
 }
 

@@ -10,6 +10,8 @@ import {
   EVENT_RAW,
   storage_add,
   storage_get,
+  storage_kv_set,
+  storage_kv_get,
   type MediaEventPayload,
 } from "../vendor/mistlib/wrappers/web/index.js";
 
@@ -22,7 +24,7 @@ export {
   DELIVERY_RELIABLE,
   DELIVERY_UNRELIABLE,
 } from "../vendor/mistlib/wrappers/web/index.js";
-export { EVENT_RAW, storage_add, storage_get };
+export { EVENT_RAW, storage_add, storage_get, storage_kv_set, storage_kv_get };
 export type { MediaEventPayload };
 
 import type { SharedStorageBackend } from "../crypto/didIdentity";

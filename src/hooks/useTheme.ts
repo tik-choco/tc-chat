@@ -16,7 +16,11 @@ export function useTheme() {
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem(THEME_KEY, theme);
+    try {
+      localStorage.setItem(THEME_KEY, theme);
+    } catch (error) {
+      console.warn("tc-chat: failed to persist theme setting", error);
+    }
   }, [theme]);
 
   function toggle() {
