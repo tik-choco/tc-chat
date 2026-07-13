@@ -1071,6 +1071,146 @@
   }
 }
 
+/* Bottom chrome: poster identity + reactions for the current item (single
+   mode only). Mirrors .lightbox-top — fixed, bottom-up gradient, fades with
+   the rest of the chrome on idle — but the empty gradient area still lets
+   clicks fall through to the backdrop, same trick as the top bar. */
+.lightbox-bottom {
+  /* A positioned ancestor (fixed counts) so .reaction-bar below can anchor
+     to it with position:absolute and center independently of the
+     identity block's width — the classic stories/photo-viewer layout. */
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  padding: 24px 16px calc(16px + env(safe-area-inset-bottom));
+  background: linear-gradient(0deg, rgba(8, 13, 24, 0.92), rgba(8, 13, 24, 0));
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.lightbox-modal--idle .lightbox-bottom {
+  opacity: 0;
+}
+
+.lightbox-bottom-identity {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.lightbox-bottom-name {
+  overflow: hidden;
+  color: #f8fafc;
+  font-size: 14px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lightbox-bottom-time {
+  flex: 0 0 auto;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+/* Centered regardless of how wide the identity block is — takeover of flex
+   flow via absolute positioning, anchored to .lightbox-bottom itself. */
+.lightbox-bottom .reaction-bar {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+}
+
+/* Legible on the dark lightbox backdrop (the default chip/add styling in
+   board.css assumes a light surface), and sized up from the default chat
+   chips — this bar is a primary action in the lightbox, not an incidental
+   hover affordance, so it needs comfortably tappable targets. */
+.lightbox-bottom .reaction-chip {
+  min-height: 32px;
+  padding: 0.4rem 0.75rem;
+  border-color: rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.78);
+  color: #f8fafc;
+  font-size: 14px;
+}
+
+.lightbox-bottom .reaction-chip--mine {
+  border-color: #93c5fd;
+  background: rgba(59, 130, 246, 0.28);
+  color: #dbeafe;
+}
+
+.lightbox-bottom .reaction-add {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-color: rgba(148, 163, 184, 0.5);
+  color: #f8fafc;
+}
+
+.lightbox-bottom .reaction-add svg {
+  width: 18px;
+  height: 18px;
+}
+
+.lightbox-bottom .reaction-add:hover {
+  border-color: #f8fafc;
+}
+
+/* .reaction-palette's own bottom:100% anchoring (relative to
+   .reaction-add-wrap, not .reaction-bar) already opens it upward — right
+   where a bar pinned to the bottom edge needs it — and that anchor holds
+   regardless of the bar's own centering above, so only the surface colors
+   and button size need a scoped override here. */
+.lightbox-bottom .reaction-palette {
+  border-color: rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.96);
+}
+
+.lightbox-bottom .reaction-palette-btn {
+  min-width: 40px;
+  min-height: 40px;
+  font-size: 1.3rem;
+}
+
+.lightbox-bottom .reaction-palette-btn:hover {
+  background: rgba(59, 130, 246, 0.28);
+}
+
+/* Narrow screens: centering the reaction bar over the identity block risks
+   overlap, so stack them instead — reactions centered on top, identity
+   (which can be a while name + avatar) centered below. */
+@media (max-width: 640px) {
+  .lightbox-bottom {
+    flex-direction: column;
+    justify-content: center;
+    gap: 10px;
+    padding: 16px 12px calc(12px + env(safe-area-inset-bottom));
+  }
+
+  .lightbox-bottom .reaction-bar {
+    position: static;
+    order: -1;
+    transform: none;
+  }
+
+  .lightbox-bottom-identity {
+    justify-content: center;
+    width: 100%;
+  }
+}
+
 .message-input-container {
   display: flex;
   flex-direction: column;

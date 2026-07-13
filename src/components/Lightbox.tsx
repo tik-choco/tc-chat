@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { createPortal } from "preact/compat";
 import type { JSX } from "preact";
-import { ChevronLeft, ChevronRight, Download, X } from "lucide-preact";
-import { formatBytes } from "../lib/util";
+import { ChevronLeft, ChevronRight, Download, Trash2, X } from "lucide-preact";
+import { formatBytes, formatTime } from "../lib/util";
 import { resolveStorageUrl } from "../lib/mediaUrl";
 import { useT } from "../lib/i18n";
+import type { Reaction } from "../lib/chatStore";
+import { Avatar } from "./Avatar";
+import { ReactionBar } from "./ReactionBar";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 // Auto-hide the chrome after this long without pointer movement, so the media
 // gets the whole screen (mirrors tc-storage's ExpandedPreview).
@@ -25,6 +29,15 @@ export interface LightboxItem {
   stream?: MediaStream;
   fileName?: string;
   size?: number;
+  /** Poster identity, already resolved via the profile directory. */
+  fromId?: string;
+  fromName?: string;
+  avatarCid?: string;
+  /** Post time (epoch ms), rendered via formatTime. */
+  timestamp?: number;
+  reactions?: Reaction[];
+  /** True when the local user may delete this item. */
+  canDelete?: boolean;
 }
 
 /**
@@ -43,11 +56,20 @@ export function Lightbox(props: {
   index: number;
   onIndexChange: (index: number) => void;
   onClose: () => void;
+  /** Local node id, for ReactionBar's "mine" highlight. */
+  localId?: string | null;
+  /** Present when the surface supports reactions; key is LightboxItem.key. */
+  onToggleReaction?: (key: string, emoji: string) => void;
+  /** Present when the surface supports deletion; fires only after the user confirms. */
+  onDelete?: (key: string) => void;
 }): JSX.Element | null {
-  const { items, index, onIndexChange, onClose } = props;
+  const { items, index, onIndexChange, onClose, localId, onToggleReaction, onDelete } = props;
   const t = useT();
   const [mode, setMode] = useState<"single" | "flow">("single");
   const [idle, setIdle] = useState(false);
+  // Guards the delete confirm dialog, and doubles as the Escape-key gate below
+  // (the Lightbox's own Escape handler must not close it while confirming).
+  const [confirmDelete, setConfirmDelete] = useState(false);
   // cid → resolved blob URL. resolveStorageUrl caches globally, but we mirror
   // the results into state so a resolve triggers a re-render.
   const [urls, setUrls] = useState<Record<string, string>>({});
@@ -114,10 +136,14 @@ export function Lightbox(props: {
     }
   }, [flowEnabled, current?.key, current?.stream]);
 
-  // Escape closes; ArrowLeft/ArrowRight navigate in single mode.
+  // Escape closes; ArrowLeft/ArrowRight navigate in single mode. While the
+  // delete ConfirmDialog is open it installs its own Escape listener (to
+  // cancel the confirm) — both listeners fire on the same keydown, so this
+  // one must no-op instead of also closing the whole Lightbox underneath it.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
+        if (confirmDelete) return;
         onClose();
       } else if (canNavigate && !flowEnabled && e.key === "ArrowLeft") {
         goTo(index - 1);
@@ -128,7 +154,7 @@ export function Lightbox(props: {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onClose, canNavigate, flowEnabled, index, items.length]);
+  }, [onClose, canNavigate, flowEnabled, index, items.length, confirmDelete]);
 
   // Lock body scroll while open; restore on unmount.
   useEffect(() => {
@@ -161,6 +187,12 @@ export function Lightbox(props: {
     if (!flowEnabled || !current) return;
     flowItemRefs.current[current.key]?.scrollIntoView({ block: "start" });
   }, [flowEnabled, current?.key]);
+
+  // A pending delete confirmation belongs to the item that was current when
+  // it opened — drop it on navigation so it doesn't stick to the new item.
+  useEffect(() => {
+    setConfirmDelete(false);
+  }, [current?.key]);
 
   if (!current) return null;
 
@@ -287,6 +319,17 @@ export function Lightbox(props: {
               </button>
             </div>
           )}
+          {current.canDelete && onDelete && (
+            <button
+              type="button"
+              class="lightbox-btn"
+              title={t("common.delete")}
+              aria-label={t("common.delete")}
+              onClick={() => setConfirmDelete(true)}
+            >
+              <Trash2 size={18} />
+            </button>
+          )}
           {canDownload && (
             <a
               class="lightbox-btn"
@@ -362,6 +405,55 @@ export function Lightbox(props: {
         >
           <ChevronRight size={26} />
         </button>
+      )}
+
+      {/* Poster identity + reactions for the current item. Single mode only
+          (flow mode stacks every item, so there's no one "current" bar to
+          anchor it to) and only when the caller actually gave us something
+          to show — chat's usage passes none of these fields, so this stays
+          absent there and the Lightbox renders exactly as it did before. */}
+      {!flowEnabled &&
+        (current.fromName ||
+          current.timestamp !== undefined ||
+          (onToggleReaction && current.reactions)) && (
+          <footer class="lightbox-bottom">
+            <div class="lightbox-bottom-identity">
+              {current.fromName && (
+                <Avatar
+                  id={current.fromId ?? current.fromName}
+                  name={current.fromName}
+                  avatarCid={current.avatarCid}
+                  size={24}
+                />
+              )}
+              {current.fromName && (
+                <span class="lightbox-bottom-name">{current.fromName}</span>
+              )}
+              {current.timestamp !== undefined && (
+                <span class="lightbox-bottom-time">{formatTime(current.timestamp)}</span>
+              )}
+            </div>
+            {onToggleReaction && (
+              <ReactionBar
+                reactions={current.reactions ?? []}
+                localId={localId ?? null}
+                onToggle={(emoji) => onToggleReaction(current.key, emoji)}
+              />
+            )}
+          </footer>
+        )}
+
+      {confirmDelete && onDelete && (
+        <ConfirmDialog
+          title={t("common.delete")}
+          message={t("media.galleryDeleteConfirm")}
+          confirmLabel={t("common.deleteConfirm")}
+          onConfirm={() => {
+            onDelete(current.key);
+            setConfirmDelete(false);
+          }}
+          onCancel={() => setConfirmDelete(false)}
+        />
       )}
     </section>,
     document.body,

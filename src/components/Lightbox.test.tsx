@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, fireEvent, cleanup, waitFor } from "@testing-library/preact";
 import { Lightbox, type LightboxItem } from "./Lightbox";
+import { formatTime } from "../lib/util";
 
 // The Lightbox resolves each item's cid to a blob URL via resolveStorageUrl.
 vi.mock("../lib/mediaUrl", () => ({
@@ -141,5 +142,137 @@ describe("Lightbox", () => {
     expect(document.body.style.overflow).toBe("hidden");
     unmount();
     expect(document.body.style.overflow).not.toBe("hidden");
+  });
+
+  describe("bottom meta bar", () => {
+    it("renders name/time/reactions for an item carrying meta", () => {
+      const items = imageItems(1);
+      const timestamp = new Date(2024, 0, 1, 9, 5).getTime();
+      items[0] = {
+        ...items[0],
+        fromId: "u1",
+        fromName: "Alice",
+        timestamp,
+        reactions: [{ emoji: "👍", fromId: "u2", fromName: "Bob" }],
+      };
+      const { getByRole } = render(
+        <Lightbox
+          items={items}
+          index={0}
+          onIndexChange={noop}
+          onClose={noop}
+          onToggleReaction={noop}
+        />,
+      );
+      const dialog = getByRole("dialog");
+      const bottom = dialog.querySelector(".lightbox-bottom");
+      expect(bottom).toBeTruthy();
+      expect(bottom!.textContent).toContain("Alice");
+      expect(bottom!.textContent).toContain(formatTime(timestamp));
+      expect(bottom!.querySelector(".reaction-chip")).toBeTruthy();
+    });
+
+    it("does not render for a meta-less item (the chat case)", () => {
+      const { getByRole } = render(
+        <Lightbox items={imageItems(1)} index={0} onIndexChange={noop} onClose={noop} />,
+      );
+      const dialog = getByRole("dialog");
+      expect(dialog.querySelector(".lightbox-bottom")).toBeNull();
+    });
+
+    it("does not render when reactions/meta are absent even with onToggleReaction wired", () => {
+      const { getByRole } = render(
+        <Lightbox
+          items={imageItems(1)}
+          index={0}
+          onIndexChange={noop}
+          onClose={noop}
+          onToggleReaction={noop}
+        />,
+      );
+      const dialog = getByRole("dialog");
+      expect(dialog.querySelector(".lightbox-bottom")).toBeNull();
+    });
+
+    it("calls onToggleReaction(key, emoji) when a palette emoji is picked", () => {
+      const items = imageItems(1);
+      items[0] = { ...items[0], reactions: [] };
+      const onToggleReaction = vi.fn();
+      const { getByRole, getByLabelText, getByText } = render(
+        <Lightbox
+          items={items}
+          index={0}
+          onIndexChange={noop}
+          onClose={noop}
+          onToggleReaction={onToggleReaction}
+        />,
+      );
+      const dialog = getByRole("dialog");
+      expect(dialog.querySelector(".lightbox-bottom")).toBeTruthy();
+      fireEvent.click(getByLabelText("リアクションを追加"));
+      fireEvent.click(getByText("👍"));
+      expect(onToggleReaction).toHaveBeenCalledWith("k0", "👍");
+    });
+  });
+
+  describe("delete", () => {
+    it("shows the delete button only when canDelete && onDelete are both present", () => {
+      const items = imageItems(1);
+      items[0] = { ...items[0], canDelete: true };
+
+      const { queryByLabelText: q1 } = render(
+        <Lightbox items={items} index={0} onIndexChange={noop} onClose={noop} />,
+      );
+      expect(q1("削除")).toBeNull(); // canDelete but no onDelete handler
+
+      cleanup();
+      const plainItems = imageItems(1);
+      const { queryByLabelText: q2 } = render(
+        <Lightbox items={plainItems} index={0} onIndexChange={noop} onClose={noop} onDelete={noop} />,
+      );
+      expect(q2("削除")).toBeNull(); // onDelete but item isn't deletable
+
+      cleanup();
+      const { queryByLabelText: q3 } = render(
+        <Lightbox items={items} index={0} onIndexChange={noop} onClose={noop} onDelete={noop} />,
+      );
+      expect(q3("削除")).toBeTruthy();
+    });
+
+    it("confirm flow calls onDelete with the item key", () => {
+      const items = imageItems(1);
+      items[0] = { ...items[0], canDelete: true };
+      const onDelete = vi.fn();
+      const { getByLabelText, getByRole, getByText } = render(
+        <Lightbox items={items} index={0} onIndexChange={noop} onClose={noop} onDelete={onDelete} />,
+      );
+      fireEvent.click(getByLabelText("削除"));
+      expect(getByRole("alertdialog")).toBeTruthy();
+      fireEvent.click(getByText("削除する"));
+      expect(onDelete).toHaveBeenCalledWith("k0");
+    });
+
+    it("Escape while the confirm dialog is open cancels the confirm, not the Lightbox", () => {
+      const items = imageItems(1);
+      items[0] = { ...items[0], canDelete: true };
+      const onClose = vi.fn();
+      const onDelete = vi.fn();
+      const { getByLabelText, getByRole, queryByRole } = render(
+        <Lightbox
+          items={items}
+          index={0}
+          onIndexChange={noop}
+          onClose={onClose}
+          onDelete={onDelete}
+        />,
+      );
+      fireEvent.click(getByLabelText("削除"));
+      expect(getByRole("alertdialog")).toBeTruthy();
+
+      fireEvent.keyDown(window, { key: "Escape" });
+      expect(onClose).not.toHaveBeenCalled();
+      expect(onDelete).not.toHaveBeenCalled();
+      expect(queryByRole("alertdialog")).toBeNull();
+    });
   });
 });

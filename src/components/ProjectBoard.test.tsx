@@ -51,8 +51,8 @@ describe("ProjectBoard (recursive rendering)", () => {
   });
   const nodes = [root, child, grandchild];
 
-  it("renders a nested thread: project title, comment, and deep reply all show", () => {
-    const { getByText } = render(
+  it("すべて view shows a card grid; opening a card reveals the nested thread", () => {
+    const { getByText, queryByText } = render(
       <ProjectBoard
         roomName="room"
         localNodeId="u1"
@@ -65,17 +65,21 @@ describe("ProjectBoard (recursive rendering)", () => {
         onDelete={() => {}}
       />,
     );
+    // The default (all) view is the card grid: card content shows, replies don't.
     expect(getByText("Need an artist")).toBeTruthy();
+    expect(getByText("artist")).toBeTruthy();
+    expect(getByText("3d")).toBeTruthy();
+    expect(queryByText("I can help!")).toBeNull();
+
+    // Opening the card shows the whole nested thread.
+    fireEvent.click(getByText("Need an artist"));
     expect(getByText("I can help!")).toBeTruthy();
     expect(getByText("great, DM me")).toBeTruthy();
     // 2 descendants under the root.
     expect(getByText("▾ 2件の返信")).toBeTruthy();
-    // Recruitment chips.
-    expect(getByText("artist")).toBeTruthy();
-    expect(getByText("3d")).toBeTruthy();
   });
 
-  it("shows a reaction chip with its count and toggles it on click", () => {
+  it("shows a reaction chip with its count in thread detail and toggles it on click", () => {
     const onToggleReaction = vi.fn();
     const { getByText } = render(
       <ProjectBoard
@@ -90,6 +94,7 @@ describe("ProjectBoard (recursive rendering)", () => {
         onDelete={() => {}}
       />,
     );
+    fireEvent.click(getByText("Need an artist"));
     // Reaction chip renders emoji + count; clicking the count's chip toggles.
     fireEvent.click(getByText("👍").closest("button")!);
     expect(onToggleReaction).toHaveBeenCalledWith("root", "👍");
@@ -128,6 +133,7 @@ describe("ProjectBoard (recursive rendering)", () => {
         onDelete={onDelete}
       />,
     );
+    fireEvent.click(getByText("Need an artist"));
     // Only the two u1-authored nodes (root + grandchild) offer delete.
     const deleteButtons = getAllByText("🗑 削除");
     expect(deleteButtons).toHaveLength(2);
@@ -141,7 +147,7 @@ describe("ProjectBoard (recursive rendering)", () => {
 
   it("Shift+click deletes a node immediately, skipping the dialog", () => {
     const onDelete = vi.fn();
-    const { getAllByText, queryByText } = render(
+    const { getAllByText, getByText, queryByText } = render(
       <ProjectBoard
         roomName="room"
         localNodeId="u1"
@@ -154,12 +160,13 @@ describe("ProjectBoard (recursive rendering)", () => {
         onDelete={onDelete}
       />,
     );
+    fireEvent.click(getByText("Need an artist"));
     fireEvent.click(getAllByText("🗑 削除")[0], { shiftKey: true });
     expect(onDelete).toHaveBeenCalledWith("root");
     expect(queryByText("投稿を削除")).toBeNull();
   });
 
-  it("renders a tombstone for a deleted node but keeps its replies", () => {
+  it("a deleted root with replies stays as a tombstone card whose thread is still reachable", () => {
     const deletedRoot = { ...root, deleted: true, text: undefined, title: undefined };
     const { getByText, queryByText } = render(
       <ProjectBoard
@@ -174,15 +181,37 @@ describe("ProjectBoard (recursive rendering)", () => {
         onDelete={() => {}}
       />,
     );
+    // The grid keeps a muted tombstone card (the doorway to the replies).
     expect(getByText("この投稿は削除されました")).toBeTruthy();
     expect(queryByText("Need an artist")).toBeNull();
-    // The thread beneath the tombstone survives.
+    expect(queryByText("I can help!")).toBeNull();
+
+    // Opening it shows the surviving thread beneath the tombstone.
+    fireEvent.click(getByText("この投稿は削除されました"));
     expect(getByText("I can help!")).toBeTruthy();
     expect(getByText("great, DM me")).toBeTruthy();
   });
 
-  it("opens a reply composer under a node", () => {
-    const { getAllByText, getByPlaceholderText } = render(
+  it("a deleted root without replies disappears from the grid entirely", () => {
+    const deletedRoot = { ...root, deleted: true, text: undefined, title: undefined };
+    const { queryByText } = render(
+      <ProjectBoard
+        roomName="room"
+        localNodeId="u1"
+        nodes={[deletedRoot]}
+        ready
+        directory={{}}
+        onCreate={() => {}}
+        onToggleReaction={() => {}}
+        onEdit={() => {}}
+        onDelete={() => {}}
+      />,
+    );
+    expect(queryByText("この投稿は削除されました")).toBeNull();
+  });
+
+  it("募集 filter shows a recruitment card grid instead of the flat thread list", () => {
+    const { getByText, getByRole, queryByText } = render(
       <ProjectBoard
         roomName="room"
         localNodeId="u1"
@@ -195,8 +224,162 @@ describe("ProjectBoard (recursive rendering)", () => {
         onDelete={() => {}}
       />,
     );
+    fireEvent.click(getByRole("tab", { name: "募集" }));
+    // The root's card renders...
+    expect(getByText("Need an artist")).toBeTruthy();
+    // ...but the grid only shows cards, not the nested thread underneath them.
+    expect(queryByText("I can help!")).toBeNull();
+    expect(queryByText("great, DM me")).toBeNull();
+  });
+
+  it("clicking a recruitment card opens its thread detail with a back button", () => {
+    const { getByText, getByRole, queryByText } = render(
+      <ProjectBoard
+        roomName="room"
+        localNodeId="u1"
+        nodes={nodes}
+        ready
+        directory={{}}
+        onCreate={() => {}}
+        onToggleReaction={() => {}}
+        onEdit={() => {}}
+        onDelete={() => {}}
+      />,
+    );
+    fireEvent.click(getByRole("tab", { name: "募集" }));
+    fireEvent.click(getByText("Need an artist"));
+    // Thread detail: the full nested thread plus a way back to the grid.
+    expect(getByText("I can help!")).toBeTruthy();
+    expect(getByText("great, DM me")).toBeTruthy();
+    expect(queryByText("← 一覧へ戻る")).toBeTruthy();
+  });
+
+  it("the back button returns from thread detail to the recruitment card grid", () => {
+    const { getByText, getByRole, queryByText } = render(
+      <ProjectBoard
+        roomName="room"
+        localNodeId="u1"
+        nodes={nodes}
+        ready
+        directory={{}}
+        onCreate={() => {}}
+        onToggleReaction={() => {}}
+        onEdit={() => {}}
+        onDelete={() => {}}
+      />,
+    );
+    fireEvent.click(getByRole("tab", { name: "募集" }));
+    fireEvent.click(getByText("Need an artist"));
+    expect(getByText("I can help!")).toBeTruthy();
+
+    fireEvent.click(getByText("← 一覧へ戻る"));
+    // Back to the grid: the card is there again, the thread's replies aren't.
+    expect(getByText("Need an artist")).toBeTruthy();
+    expect(queryByText("I can help!")).toBeNull();
+  });
+
+  it("opens a reply composer under a node", () => {
+    const { getAllByText, getByText, getByPlaceholderText } = render(
+      <ProjectBoard
+        roomName="room"
+        localNodeId="u1"
+        nodes={nodes}
+        ready
+        directory={{}}
+        onCreate={() => {}}
+        onToggleReaction={() => {}}
+        onEdit={() => {}}
+        onDelete={() => {}}
+      />,
+    );
+    fireEvent.click(getByText("Need an artist"));
     fireEvent.click(getAllByText("💬 返信")[0]);
     expect(getByPlaceholderText("返信を書く…")).toBeTruthy();
+  });
+
+  // Controlled mode: App owns openThreadId (mirrored into the URL hash) so a
+  // deep link can land directly inside a thread.
+  it("a controlled openThreadId opens that thread directly (deep link)", () => {
+    const { getByText } = render(
+      <ProjectBoard
+        roomName="room"
+        localNodeId="u1"
+        nodes={nodes}
+        ready
+        directory={{}}
+        onCreate={() => {}}
+        onToggleReaction={() => {}}
+        onEdit={() => {}}
+        onDelete={() => {}}
+        openThreadId="root"
+        onOpenThread={() => {}}
+      />,
+    );
+    expect(getByText("I can help!")).toBeTruthy();
+    expect(getByText("great, DM me")).toBeTruthy();
+  });
+
+  it("a deep-linked thread whose node hasn't arrived yet shows the grid and is NOT cleared", () => {
+    const onOpenThread = vi.fn();
+    const { getByText, rerender } = render(
+      <ProjectBoard
+        roomName="room"
+        localNodeId="u1"
+        nodes={[]}
+        ready
+        directory={{}}
+        onCreate={() => {}}
+        onToggleReaction={() => {}}
+        onEdit={() => {}}
+        onDelete={() => {}}
+        openThreadId="root"
+        onOpenThread={onOpenThread}
+      />,
+    );
+    // The id never resolved (history sync may still deliver it) — keep it.
+    expect(onOpenThread).not.toHaveBeenCalled();
+
+    // Once the nodes land, the deep-linked thread opens by itself.
+    rerender(
+      <ProjectBoard
+        roomName="room"
+        localNodeId="u1"
+        nodes={nodes}
+        ready
+        directory={{}}
+        onCreate={() => {}}
+        onToggleReaction={() => {}}
+        onEdit={() => {}}
+        onDelete={() => {}}
+        openThreadId="root"
+        onOpenThread={onOpenThread}
+      />,
+    );
+    expect(getByText("I can help!")).toBeTruthy();
+    expect(onOpenThread).not.toHaveBeenCalled();
+  });
+
+  it("an open thread whose node disappears clears the controlled id", () => {
+    const onOpenThread = vi.fn();
+    const props = {
+      roomName: "room",
+      localNodeId: "u1",
+      ready: true,
+      directory: {},
+      onCreate: () => {},
+      onToggleReaction: () => {},
+      onEdit: () => {},
+      onDelete: () => {},
+      openThreadId: "root",
+      onOpenThread,
+    };
+    const { rerender } = render(<ProjectBoard {...props} nodes={nodes} />);
+    expect(onOpenThread).not.toHaveBeenCalled();
+
+    // The thread had resolved once; its node vanishing (deleted / room
+    // switch) must clear the id so the view doesn't strand.
+    rerender(<ProjectBoard {...props} nodes={[]} />);
+    expect(onOpenThread).toHaveBeenCalledWith(null);
   });
 });
 

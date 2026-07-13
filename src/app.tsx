@@ -50,12 +50,14 @@ import {
   saveDevMode,
   loadMediaCaution,
   saveMediaCaution,
+  loadLastView,
+  saveLastView,
   type ChatDisplay,
 } from "./lib/chatStore";
 import { getNode, createMistStorageBackend } from "./lib/mistClient";
 import { identityFor } from "./lib/profileDirectory";
 import { ensureDidIdentity, ensureSharedDidIdentity } from "./crypto/didIdentity";
-import { GLOBAL_ROOM_ID, hashForRoomId, roomIdFromHash } from "./lib/util";
+import { GLOBAL_ROOM_ID, hashForLocation, locationFromHash, type AppLocation } from "./lib/util";
 import {
   shouldShowOnboarding,
   markOnboardingDone,
@@ -66,10 +68,20 @@ import { useT } from "./lib/i18n";
 
 export function App() {
   const [username, setUsername] = useState(() => loadUsername());
-  // The active channel is restored from (and mirrored back into) the URL hash,
-  // so the address bar always shows the channel on screen and deep links work.
-  const [activeRoomId, setActiveRoomId] = useState(() => roomIdFromHash(window.location.hash));
-  const [roomTab, setRoomTab] = useState<RoomTab>("chat");
+  // Where to land: an explicit deep link in the hash wins; with no hash,
+  // reopen whatever room/tab/thread was on screen last session (saved by the
+  // hash-mirroring effect below); a first-ever visit gets the global chat.
+  const [initialView] = useState<AppLocation>(
+    () =>
+      locationFromHash(window.location.hash) ??
+      loadLastView() ?? { roomId: GLOBAL_ROOM_ID, tab: "chat", threadId: null },
+  );
+  const [activeRoomId, setActiveRoomId] = useState(initialView.roomId);
+  const [roomTab, setRoomTab] = useState<RoomTab>(initialView.tab);
+  // The board's open thread lives up here (not in ProjectBoard) so it can be
+  // part of the URL — deep links straight into a thread — and of the
+  // restored last view.
+  const [boardThreadId, setBoardThreadId] = useState<string | null>(initialView.threadId);
   const [nodeId, setNodeId] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -169,23 +181,32 @@ export function App() {
       });
   }, [username]);
 
-  // Reflect the active channel into the URL hash (#/<roomId>). replaceState (not
-  // push) keeps channel-hopping out of the back stack, and — since it fires no
-  // hashchange — won't loop with the listener below.
+  // Reflect the on-screen location into the URL hash (see hashForLocation)
+  // and remember it as the view to restore next launch. replaceState (not
+  // push) keeps channel-hopping out of the back stack, and — since it fires
+  // no hashchange — won't loop with the listener below.
   useEffect(() => {
-    const target = hashForRoomId(activeRoomId);
+    const view: AppLocation = { roomId: activeRoomId, tab: roomTab, threadId: boardThreadId };
+    const target = hashForLocation(view);
     if (window.location.hash !== target) {
       window.history.replaceState(null, "", target);
     }
-  }, [activeRoomId]);
+    saveLastView(view);
+  }, [activeRoomId, roomTab, boardThreadId]);
 
   // The reverse direction: browser back/forward, a pasted deep link, or a hand
-  // edit of the hash switches channels. The voice/screen-share hooks self-tear
-  // down when their roomId changes, so a plain setState is enough here.
+  // edit of the hash navigates. This only fires for real external navigation
+  // (the mirroring effect above uses replaceState, which emits no hashchange),
+  // so applying the URL verbatim — room, tab and thread — is correct. The
+  // voice/screen-share hooks self-tear down when their roomId changes, so
+  // plain setState calls are enough here.
   useEffect(() => {
     function onHashChange() {
-      const id = roomIdFromHash(window.location.hash);
-      setActiveRoomId((cur) => (cur === id ? cur : id));
+      const loc = locationFromHash(window.location.hash);
+      if (!loc) return;
+      setActiveRoomId((cur) => (cur === loc.roomId ? cur : loc.roomId));
+      setRoomTab(loc.tab);
+      setBoardThreadId(loc.threadId);
     }
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
@@ -252,6 +273,7 @@ export function App() {
     videoCall.stop();
     setActiveRoomId(id);
     setRoomTab("chat");
+    setBoardThreadId(null);
     setSidebarOpen(false); // dismiss the drawer once a room is picked (mobile)
   }
 
@@ -368,6 +390,8 @@ export function App() {
           onToggleReaction: toggleBoardReaction,
           onEdit: editNode,
           onDelete: deleteNode,
+          openThreadId: boardThreadId,
+          onOpenThread: setBoardThreadId,
         }}
         calendarProps={{
           roomName,

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { ComponentType } from "preact";
 import { Hash, Plus, LayoutGrid, Megaphone, MessageCircle, Inbox, X, type LucideProps } from "lucide-preact";
 import type { BoardNode } from "../lib/chatStore";
@@ -9,6 +9,7 @@ import { buildForest } from "../lib/boardTree";
 import { useNoteArticleImport } from "../hooks/useNoteArticleImport";
 import { BoardNodeView } from "./BoardNodeView";
 import { NodeComposer } from "./NodeComposer";
+import { ProjectCard } from "./ProjectCard";
 
 type Filter = "all" | "project" | "text";
 
@@ -26,8 +27,18 @@ export function ProjectBoard(props: {
   directory: ProfileDirectory;
   onCreate: (input: CreatePostInput) => void;
   onToggleReaction: (targetId: string, emoji: string) => void;
-  onEdit: (targetId: string, input: { text?: string; title?: string }) => void;
+  onEdit: (
+    targetId: string,
+    input: { text?: string; title?: string; thumb?: { bytes: Uint8Array; mimeType: string } | null },
+  ) => void;
   onDelete: (targetId: string) => void;
+  /**
+   * Controlled open-thread id: App lifts it here so the URL hash can
+   * deep-link straight into a thread and the last view can be restored on
+   * relaunch. Omit both to let the board manage the state itself.
+   */
+  openThreadId?: string | null;
+  onOpenThread?: (id: string | null) => void;
 }) {
   const {
     roomName,
@@ -43,6 +54,12 @@ export function ProjectBoard(props: {
   const t = useT();
   const [filter, setFilter] = useState<Filter>("all");
   const [composing, setComposing] = useState(false);
+  // The card grid's currently-open thread (every filter tab is a grid) — set
+  // by clicking a ProjectCard, cleared by "back to list" or when the filter
+  // changes / the open node disappears (e.g. deleted, or a room switch).
+  const [localThreadId, setLocalThreadId] = useState<string | null>(null);
+  const openThreadId = props.openThreadId !== undefined ? props.openThreadId : localThreadId;
+  const setOpenThread = props.onOpenThread ?? setLocalThreadId;
   // Seeds the composer's initial title/text once, when an imported article
   // opens it — undefined for a normal "New post" click (empty composer).
   const [composerSeed, setComposerSeed] = useState<{ title: string; text: string } | null>(null);
@@ -55,6 +72,36 @@ export function ProjectBoard(props: {
     () => (filter === "all" ? forest : forest.filter((r) => r.node.kind === filter)),
     [forest, filter],
   );
+  const openEntry = openThreadId ? roots.find((r) => r.node.id === openThreadId) : undefined;
+
+  // Reset the open thread whenever the filter changes — but not on mount,
+  // where a deep-linked thread id arrives with the initial filter and must
+  // survive until its node shows up.
+  const prevFilter = useRef(filter);
+  useEffect(() => {
+    if (prevFilter.current === filter) return;
+    prevFilter.current = filter;
+    setOpenThread(null);
+  }, [filter]);
+
+  // Clear the open thread once the node it points at DISAPPEARS (deleted
+  // root, or a room switch swapped the node list) — a stale id would strand
+  // the view. An id that has never resolved is kept, though: a deep-linked
+  // thread's node may still be in flight via P2P history sync, and until it
+  // lands the grid renders anyway (openEntry stays undefined).
+  const openEverResolved = useRef(false);
+  useEffect(() => {
+    if (!openThreadId) {
+      openEverResolved.current = false;
+      return;
+    }
+    if (roots.some((r) => r.node.id === openThreadId)) {
+      openEverResolved.current = true;
+    } else if (openEverResolved.current) {
+      openEverResolved.current = false;
+      setOpenThread(null);
+    }
+  }, [openThreadId, roots]);
 
   function handleCreate(input: CreatePostInput) {
     onCreate(input);
@@ -147,30 +194,54 @@ export function ProjectBoard(props: {
           />
         )}
 
-        {roots.length === 0 && (
-          <div class="board-empty">
-            <p>{filter === "all" ? t("board.emptyAll") : t("board.emptyFiltered")}</p>
-            {ready && (
-              <button type="button" class="board-empty-cta" onClick={() => setComposing(true)}>
-                {t("board.firstPost")}
-              </button>
+        {openEntry ? (
+          <>
+            <button type="button" class="board-thread-back" onClick={() => setOpenThread(null)}>
+              ← {t("board.backToList")}
+            </button>
+            <BoardNodeView
+              key={openEntry.node.id}
+              entry={openEntry}
+              depth={0}
+              localId={localNodeId}
+              directory={directory}
+              onCreate={onCreate}
+              onToggleReaction={onToggleReaction}
+              onEdit={onEdit}
+              onDelete={onDelete}
+            />
+          </>
+        ) : (
+          <>
+            {roots.length === 0 && (
+              <div class="board-empty">
+                <p>{filter === "all" ? t("board.emptyAll") : t("board.emptyFiltered")}</p>
+                {ready && (
+                  <button type="button" class="board-empty-cta" onClick={() => setComposing(true)}>
+                    {t("board.firstPost")}
+                  </button>
+                )}
+              </div>
             )}
-          </div>
-        )}
 
-        {roots.map((entry) => (
-          <BoardNodeView
-            key={entry.node.id}
-            entry={entry}
-            depth={0}
-            localId={localNodeId}
-            directory={directory}
-            onCreate={onCreate}
-            onToggleReaction={onToggleReaction}
-            onEdit={onEdit}
-            onDelete={onDelete}
-          />
-        ))}
+            <div class="project-card-grid">
+              {roots
+                // A deleted root without replies has nothing left to show;
+                // one WITH replies stays as a tombstone card — the card is
+                // the only doorway into the surviving thread beneath it.
+                .filter((entry) => !entry.node.deleted || entry.replyCount > 0)
+                .map((entry) => (
+                  <ProjectCard
+                    key={entry.node.id}
+                    entry={entry}
+                    localId={localNodeId}
+                    onOpen={setOpenThread}
+                    onToggleReaction={onToggleReaction}
+                  />
+                ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

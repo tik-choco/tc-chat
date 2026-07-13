@@ -127,6 +127,13 @@ export const ko: Messages = {
     deletePostMessage: "이 게시글을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
     titlePlaceholder: "제목",
 
+    // Thumbnail image (composer + node view)
+    thumbAdd: "썸네일 이미지 추가",
+    thumbChange: "썸네일 변경",
+    thumbRemove: "썸네일 삭제",
+    thumbAlt: "썸네일 이미지",
+    thumbError: "이미지를 불러오지 못했어요",
+
     // Composer (NodeComposer)
     titleOptionalPlaceholder: "제목 (선택)",
     recruitTitlePlaceholder: "모집 제목",
@@ -145,6 +152,14 @@ export const ko: Messages = {
     importArticleChip: "tc-note 기사 가져오기: {title}",
     importArticleDismiss: "무시하기",
     // --- end note-article import chip ---
+
+    // --- recruit join / capacity ---
+    joinWish: "참가 희망",
+    joinCount: "참가 희망 {count}명",
+    joinCountCap: "참가 희망 {count}/{capacity}명",
+    capacityPlaceholder: "모집 인원 (선택)",
+    backToList: "목록으로 돌아가기",
+    // --- end recruit join / capacity ---
   },
 
   media: {

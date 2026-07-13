@@ -130,14 +130,64 @@ describe("MediaGalleryView", () => {
     expect(dialog.getAttribute("aria-modal")).toBe("true");
   });
 
-  it("toggles a reaction via the shared ReactionBar", () => {
+  it("shows a passive reaction summary pill as the resting-state display", () => {
+    const item = makeItem({
+      id: "img",
+      reactions: [
+        { emoji: "👍", fromId: "u2", fromName: "U2" },
+        { emoji: "👍", fromId: "u3", fromName: "U3" },
+        { emoji: "❤️", fromId: "u4", fromName: "U4" },
+      ],
+    });
+    const { container } = render(<MediaGalleryView {...baseProps} items={[item]} />);
+    const badge = container.querySelector(".gallery-tile-reactions");
+    expect(badge?.textContent).toBe("👍❤️ 3");
+  });
+
+  it("does not render a reaction badge when there are no reactions", () => {
+    const item = makeItem({ id: "img", reactions: [] });
+    const { container } = render(<MediaGalleryView {...baseProps} items={[item]} />);
+    expect(container.querySelector(".gallery-tile-reactions")).toBeNull();
+  });
+
+  it("renders a hover-revealed ReactionBar as a sibling of the media button, wired to onToggleReaction", () => {
     const onToggleReaction = vi.fn();
-    const item = makeItem({ id: "img", reactions: [{ emoji: "👍", fromId: "u2", fromName: "U2" }] });
-    const { getByText } = render(
+    const item = makeItem({
+      id: "img",
+      reactions: [{ emoji: "👍", fromId: "u2", fromName: "U2" }],
+    });
+    const { container, getByText } = render(
       <MediaGalleryView {...baseProps} items={[item]} onToggleReaction={onToggleReaction} />,
     );
+    const reactWrap = container.querySelector(".gallery-tile-react");
+    expect(reactWrap).toBeTruthy();
+    // Interactive — not nested inside the media <button> (invalid HTML) —
+    // and not inert like the passive pill.
+    expect(reactWrap?.querySelector(".reaction-bar")).toBeTruthy();
+    expect(container.querySelector(".gallery-tile-media .reaction-bar")).toBeNull();
+
     fireEvent.click(getByText("👍").closest("button")!);
     expect(onToggleReaction).toHaveBeenCalledWith("img", "👍");
+  });
+
+  it("renders an always-visible play badge on video tiles but not image tiles", () => {
+    const image = makeItem({ id: "img", mimeType: "image/png" });
+    const video = makeItem({ id: "vid", mimeType: "video/mp4", cid: "cid-vid" });
+    const { container } = render(<MediaGalleryView {...baseProps} items={[image, video]} />);
+    expect(container.querySelectorAll(".gallery-tile-badge")).toHaveLength(1);
+  });
+
+  it("shows the resolved poster name and time in the hover overlay", () => {
+    const directory = {
+      u1: { displayName: "Directory Name", updatedAt: 1 },
+    };
+    const item = makeItem({ id: "img", fromId: "u1", fromName: "Fallback Name" });
+    const { container } = render(
+      <MediaGalleryView {...baseProps} directory={directory} items={[item]} />,
+    );
+    const overlay = container.querySelector(".gallery-tile-overlay");
+    expect(overlay?.textContent).toContain("Directory Name");
+    expect(overlay?.textContent).not.toContain("Fallback Name");
   });
 
   it("triggers onAddFiles when files are picked from the hidden file input", () => {

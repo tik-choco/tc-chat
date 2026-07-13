@@ -43,6 +43,22 @@ const ja = {
   importArticleChip: "tc-noteの記事を取り込む: {title}",
   importArticleDismiss: "取り込みを見送る",
   // --- end note-article import chip ---
+
+  // --- root post thumbnail image ---
+  thumbAdd: "サムネイル画像を追加",
+  thumbChange: "サムネイル変更",
+  thumbRemove: "サムネイル削除",
+  thumbAlt: "サムネイル画像",
+  thumbError: "画像を読み込めませんでした",
+  // --- end thumbnail image ---
+
+  // --- recruit join / capacity ---
+  joinWish: "参加希望",
+  joinCount: "参加希望 {count}人",
+  joinCountCap: "参加希望 {count}/{capacity}人",
+  capacityPlaceholder: "募集人数（任意）",
+  backToList: "一覧へ戻る",
+  // --- end recruit join / capacity ---
 };
 
 const en: typeof ja = {
@@ -83,6 +99,22 @@ const en: typeof ja = {
   importArticleChip: "Import tc-note article: {title}",
   importArticleDismiss: "Dismiss",
   // --- end note-article import chip ---
+
+  // --- root post thumbnail image ---
+  thumbAdd: "Add thumbnail",
+  thumbChange: "Change thumbnail",
+  thumbRemove: "Remove thumbnail",
+  thumbAlt: "Thumbnail image",
+  thumbError: "Could not load the image",
+  // --- end thumbnail image ---
+
+  // --- recruit join / capacity ---
+  joinWish: "Interested",
+  joinCount: "{count} interested",
+  joinCountCap: "Interested {count}/{capacity}",
+  capacityPlaceholder: "Openings (optional)",
+  backToList: "Back to list",
+  // --- end recruit join / capacity ---
 };
 
 export const board = { ja, en };

@@ -37,42 +37,36 @@
 .gallery-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 0.85rem;
+  gap: 6px;
 }
 
+/* Image-first tile: the photo/video fills the whole tile edge to edge — no
+   card chrome (border/padding/background/shadow). Metadata lives in overlays
+   painted on top of the media (see .gallery-tile-overlay etc. below) rather
+   than in flow layout, so the tile itself is just a clipped, positioned box. */
 .gallery-tile {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-m);
+  aspect-ratio: 1 / 1;
   min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-l);
-  background: var(--surface);
-  box-shadow: var(--shadow-1);
-  padding: 0.5rem;
-  transition: box-shadow var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
-}
-
-.gallery-tile:hover {
-  box-shadow: var(--shadow-2);
+  background: var(--bg-alt);
 }
 
 .gallery-tile-media {
   display: block;
   width: 100%;
-  aspect-ratio: 1 / 1;
+  height: 100%;
   padding: 0;
   border: none;
-  border-radius: var(--radius-m);
-  overflow: hidden;
-  background: var(--bg-alt);
+  background: transparent;
   cursor: zoom-in;
   line-height: 0;
 }
 
 .gallery-tile-media:focus-visible {
   outline: 2px solid var(--primary);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
 .gallery-tile-thumb {
@@ -81,6 +75,11 @@
   height: 100%;
   object-fit: cover;
   background: #000;
+  transition: transform var(--dur-fast) var(--ease);
+}
+
+.gallery-tile:hover .gallery-tile-thumb {
+  transform: scale(1.04);
 }
 
 .gallery-tile-placeholder {
@@ -92,49 +91,197 @@
   opacity: 0.6;
 }
 
-.gallery-tile-meta {
+/* Bottom-up scrim + poster identity, revealed on hover/focus (see the
+   hover-capable-only media query below) so the resting grid stays purely
+   photographic. */
+.gallery-tile-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  min-width: 0;
+  padding: 0.5rem 2.6rem 0.5rem 0.5rem;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.65), transparent);
+  color: #fff;
+  font-size: 0.72rem;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+  pointer-events: none;
 }
 
-.gallery-tile-name {
+.gallery-tile-overlay .gallery-tile-name {
   flex: 1;
   min-width: 0;
-  font-size: 0.78rem;
   font-weight: 600;
-  color: var(--text-h);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.gallery-tile-time {
-  font-size: 0.68rem;
-  opacity: 0.55;
+.gallery-tile-overlay .gallery-tile-time {
   flex: none;
+  opacity: 0.85;
 }
 
+/* Own-tile delete: a sibling of the media button (not nested inside it, which
+   would be invalid HTML for an interactive descendant of a button), pinned to
+   the top-right corner and revealed the same way as the overlay. */
 .gallery-tile-delete {
-  flex: none;
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
   border: none;
-  background: transparent;
-  color: var(--text-subtle);
+  border-radius: var(--radius-pill);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
   cursor: pointer;
-  padding: 0.15rem;
-  border-radius: var(--radius-xs);
-  opacity: 0.75;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 
 .gallery-tile-delete:hover {
+  background: var(--danger, #e5484d);
+}
+
+/* Hover-revealed reaction bar: also a sibling of the media button (the
+   ReactionBar is interactive — chips plus an add-reaction popover — so it
+   can't nest inside a <button>, same rule as the delete button above). Sits
+   just above the meta overlay row so the two don't collide. Hidden means
+   BOTH invisible and non-interactive (opacity 0 *and* pointer-events: none)
+   — an invisible-but-clickable control is a bug, not just a visual nicety. */
+.gallery-tile-react {
+  position: absolute;
+  left: 0.4rem;
+  bottom: 2.6rem;
+  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+
+/* Legibility on top of a photo: dark translucent chips/add-button with white
+   text/border, matching the other tile pills, instead of the board's
+   surface-colored defaults. */
+.gallery-tile-react .reaction-chip {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+}
+
+.gallery-tile-react .reaction-chip--mine {
+  border-color: #fff;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+}
+
+.gallery-tile-react .reaction-add {
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #fff;
+  opacity: 0.85;
+}
+
+.gallery-tile-react .reaction-add:hover {
   opacity: 1;
-  color: var(--danger-text);
+  border-color: #fff;
+}
+
+/* The add-reaction popover lays out 8 emoji in a 4-column grid (see
+   board.css's .reaction-palette) with no explicit width, so it shrinks to
+   content — but a 140–180px tile leaves little margin. Pin a compact, sane
+   width here so it can never spill past the tile's clipped bounds; it opens
+   upward from a bar that already sits ~2.6rem above the tile's bottom edge,
+   so it has vertical room too. */
+.gallery-tile-react .reaction-palette {
+  width: 112px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.1rem;
+  padding: 0.3rem;
+}
+
+.gallery-tile-react .reaction-palette-btn {
+  padding: 0.2rem;
+  font-size: 1rem;
+}
+
+/* Always-visible passive pills: a video marker (top-left) and a reaction
+   summary (bottom-right, only when there are reactions). Neither is
+   interactive itself — the reaction pill is the resting-state display,
+   replaced by the real hover-revealed ReactionBar (.gallery-tile-react)
+   while the tile is hovered/focused, and by the Lightbox on touch. */
+.gallery-tile-badge,
+.gallery-tile-reactions {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.2rem 0.4rem;
+  border-radius: var(--radius-pill);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.68rem;
+  line-height: 1;
+  pointer-events: none;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+
+.gallery-tile-badge {
+  top: 0.4rem;
+  left: 0.4rem;
+}
+
+.gallery-tile-reactions {
+  bottom: 0.4rem;
+  right: 0.4rem;
+}
+
+/* Hover-reveal only makes sense on hover-capable pointers; on touch, tapping
+   a tile opens the Lightbox (which now carries meta/reactions/delete), so
+   keep the overlay and delete button hidden rather than stuck half-shown. */
+@media (hover: hover) {
+  .gallery-tile:hover .gallery-tile-overlay,
+  .gallery-tile:focus-within .gallery-tile-overlay,
+  .gallery-tile:hover .gallery-tile-delete,
+  .gallery-tile:focus-within .gallery-tile-delete {
+    opacity: 1;
+  }
+
+  .gallery-tile:hover .gallery-tile-react,
+  .gallery-tile:focus-within .gallery-tile-react {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* The hover-revealed ReactionBar replaces the passive summary pill while
+     it's showing, so the same counts aren't displayed twice at once. */
+  .gallery-tile:hover .gallery-tile-reactions,
+  .gallery-tile:focus-within .gallery-tile-reactions {
+    opacity: 0;
+  }
+}
+
+@media (hover: none) {
+  .gallery-tile-overlay {
+    opacity: 0;
+  }
+
+  /* display, not opacity: an invisible button would still catch stray taps
+     (and sit in the tab order) — deletion/reactions on touch go through the
+     Lightbox instead. */
+  .gallery-tile-delete,
+  .gallery-tile-react {
+    display: none;
+  }
 }
 
 @media (max-width: 640px) {
   .gallery-grid {
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 0.6rem;
+    gap: 4px;
   }
 }

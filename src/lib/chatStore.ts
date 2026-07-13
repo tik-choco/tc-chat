@@ -3,6 +3,8 @@
 // concept of a room's message "history", so each peer keeps its own
 // per-room message index in localStorage, keyed by room id.
 
+import { ROOM_TABS, type AppLocation, type RoomTab } from "./util";
+
 export interface RoomMeta {
   id: string;
   name: string;
@@ -61,6 +63,11 @@ export interface PostNode {
   startsAt?: number;
   endsAt?: number;
   location?: string;
+  /** Optional thumbnail image for board posts: CID of the (downscaled) image bytes. */
+  thumbCid?: string;
+  thumbMimeType?: string;
+  /** Recruitment capacity (project kind): how many members the post is looking for. */
+  capacity?: number;
   /** Tombstoned by its author (applyPostDelete): body cleared, position kept. */
   deleted?: boolean;
   /** Set when the author last edited the body (applyPostEdit). */
@@ -156,6 +163,9 @@ function tombstone(target: PostNode): void {
   target.startsAt = undefined;
   target.endsAt = undefined;
   target.location = undefined;
+  target.thumbCid = undefined;
+  target.thumbMimeType = undefined;
+  target.capacity = undefined;
   target.editedAt = undefined;
 }
 
@@ -260,6 +270,9 @@ export function applyPostEdit(
     startsAt?: number;
     endsAt?: number;
     location?: string;
+    thumbCid?: string;
+    thumbMimeType?: string;
+    capacity?: number;
   },
 ): void {
   const posts = loadPosts(surface, roomId);
@@ -273,6 +286,9 @@ export function applyPostEdit(
   target.startsAt = patch.startsAt;
   target.endsAt = patch.endsAt;
   target.location = patch.location;
+  target.thumbCid = patch.thumbCid;
+  target.thumbMimeType = patch.thumbMimeType;
+  target.capacity = patch.capacity;
   savePosts(surface, roomId, posts);
 }
 
@@ -395,6 +411,34 @@ export function loadDevMode(): boolean {
 
 export function saveDevMode(enabled: boolean) {
   localStorage.setItem(DEV_MODE_KEY, enabled ? "1" : "0");
+}
+
+const LAST_VIEW_KEY = "tc-chat:last-view";
+
+/**
+ * The last place the user was looking at (room + tab + open board thread).
+ * Written on every navigation and read back on launch when the URL hash
+ * doesn't already say where to go, so reopening the app lands on the same
+ * screen as last time.
+ */
+export function loadLastView(): AppLocation | null {
+  try {
+    const raw = localStorage.getItem(LAST_VIEW_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<AppLocation>;
+    if (typeof parsed.roomId !== "string" || !parsed.roomId) return null;
+    const tab = (ROOM_TABS as readonly string[]).includes(parsed.tab as string)
+      ? (parsed.tab as RoomTab)
+      : "chat";
+    const threadId = typeof parsed.threadId === "string" && parsed.threadId ? parsed.threadId : null;
+    return { roomId: parsed.roomId, tab, threadId };
+  } catch {
+    return null;
+  }
+}
+
+export function saveLastView(view: AppLocation) {
+  localStorage.setItem(LAST_VIEW_KEY, JSON.stringify(view));
 }
 
 const MEDIA_CAUTION_KEY = "tc-chat:media-caution";
