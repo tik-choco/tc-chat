@@ -5,8 +5,11 @@ import { ProjectBoard } from "./ProjectBoard";
 import { CalendarView } from "./CalendarView";
 import { MediaGalleryView } from "./MediaGalleryView";
 import { useT } from "../lib/i18n";
+import type { RoomTab } from "../lib/util";
 
-export type RoomTab = "chat" | "board" | "calendar" | "gallery";
+// Re-exported so tab consumers don't need to know the type lives in util
+// (where the hash codec needs it) rather than here (where the tab bar is).
+export type { RoomTab };
 
 export function RoomContent(props: {
   tab: RoomTab;

@@ -102,6 +102,9 @@ interface PostBody {
   startsAt?: number;
   endsAt?: number;
   location?: string;
+  thumbCid?: string;
+  thumbMimeType?: string;
+  capacity?: number;
 }
 
 export interface CreatePostInput {
@@ -114,6 +117,10 @@ export interface CreatePostInput {
   startsAt?: number;
   endsAt?: number;
   location?: string;
+  /** Downscaled thumbnail image to attach (board root posts). */
+  thumb?: { bytes: Uint8Array; mimeType: string };
+  /** Recruitment capacity (project kind): how many members the post is looking for. */
+  capacity?: number;
 }
 
 function structuredKind(kind: PostKind): boolean {
@@ -175,6 +182,9 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
             startsAt: body.startsAt,
             endsAt: body.endsAt,
             location: body.location,
+            thumbCid: body.thumbCid,
+            thumbMimeType: body.thumbMimeType,
+            capacity: body.capacity,
             mimeType: wire.mimeType,
             fileName: wire.fileName,
             fileSize: wire.fileSize,
@@ -234,6 +244,9 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
           startsAt: body.startsAt,
           endsAt: body.endsAt,
           location: body.location,
+          thumbCid: body.thumbCid,
+          thumbMimeType: body.thumbMimeType,
+          capacity: body.capacity,
         });
         setNodes(loadPosts(surface, roomId!));
       } catch (err) {
@@ -297,6 +310,9 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
     // the calendar UI) are mandatory.
     if (!input.text?.trim() && !input.title?.trim()) return;
     const identity = await ensureDidIdentity();
+    const thumbCid = input.thumb
+      ? await storage_add(`${newId()}-thumb`, input.thumb.bytes)
+      : undefined;
     const body: PostBody = {
       title: input.title?.trim() || undefined,
       text: input.text?.trim() || undefined,
@@ -305,6 +321,10 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
       startsAt: input.startsAt,
       endsAt: input.endsAt,
       location: input.location?.trim() || undefined,
+      thumbCid,
+      thumbMimeType: thumbCid ? input.thumb!.mimeType : undefined,
+      capacity:
+        Number.isInteger(input.capacity) && input.capacity! > 0 ? input.capacity : undefined,
     };
     const cid = await storage_add(`${newId()}.json`, new TextEncoder().encode(JSON.stringify(body)));
     const id = newId();
@@ -459,7 +479,17 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
    */
   async function editPost(
     targetId: string,
-    input: { text?: string; title?: string; startsAt?: number; endsAt?: number; location?: string },
+    input: {
+      text?: string;
+      title?: string;
+      startsAt?: number;
+      endsAt?: number;
+      location?: string;
+      /** undefined = keep existing thumbnail, null = remove it, object = replace it. */
+      thumb?: { bytes: Uint8Array; mimeType: string } | null;
+      /** undefined = keep existing capacity, null = remove it, number = set it. */
+      capacity?: number | null;
+    },
   ) {
     if (!roomId) return;
     const identity = await ensureDidIdentity();
@@ -471,6 +501,20 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
     // A calendar event's description is optional (only title/startsAt are
     // mandatory) — every other structured kind still requires body text.
     if (!input.text?.trim() && !input.title?.trim() && target.kind !== "event") return;
+    // thumb: undefined keeps the existing thumbnail, null drops it, and an
+    // object replaces it with a freshly stored image.
+    const thumbCid =
+      input.thumb === undefined
+        ? target.thumbCid
+        : input.thumb === null
+          ? undefined
+          : await storage_add(`${newId()}-thumb`, input.thumb.bytes);
+    const thumbMimeType =
+      input.thumb === undefined
+        ? target.thumbMimeType
+        : input.thumb === null
+          ? undefined
+          : input.thumb.mimeType;
     const body: PostBody = {
       // A caller that doesn't mention a field keeps the existing one (chat
       // edits only ever pass text); roles/tags always survive an edit.
@@ -481,6 +525,9 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
       startsAt: input.startsAt ?? target.startsAt,
       endsAt: input.endsAt ?? target.endsAt,
       location: input.location !== undefined ? input.location.trim() || undefined : target.location,
+      thumbCid,
+      thumbMimeType,
+      capacity: input.capacity === undefined ? target.capacity : (input.capacity ?? undefined),
     };
     const cid = await storage_add(`${newId()}.json`, new TextEncoder().encode(JSON.stringify(body)));
     const timestamp = Date.now();
@@ -507,6 +554,9 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
       startsAt: body.startsAt,
       endsAt: body.endsAt,
       location: body.location,
+      thumbCid: body.thumbCid,
+      thumbMimeType: body.thumbMimeType,
+      capacity: body.capacity,
     });
     setNodes(loadPosts(surface, roomId));
   }

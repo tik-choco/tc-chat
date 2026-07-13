@@ -1,7 +1,8 @@
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import type { JSX } from "preact";
 import type { BoardNodeKind } from "../lib/chatStore";
 import type { CreatePostInput } from "../hooks/usePostStream";
+import { makeThumbnail, type ThumbResult } from "../lib/imageThumb";
 import { useT } from "../lib/i18n";
 
 function splitTokens(value: string): string[] {
@@ -35,16 +36,51 @@ export function NodeComposer(props: {
   const [text, setText] = useState(initialText ?? "");
   const [roles, setRoles] = useState("");
   const [tags, setTags] = useState("");
+  const [capacity, setCapacity] = useState("");
   const [error, setError] = useState("");
+  const [thumb, setThumb] = useState<ThumbResult | null>(null);
+  const [thumbPreviewUrl, setThumbPreviewUrl] = useState<string | null>(null);
+  const thumbInputRef = useRef<HTMLInputElement>(null);
 
   const isProject = mode === "root" && kind === "project";
+
+  // Revokes on every change (the previous URL, via the closure this effect's
+  // cleanup captured) and on unmount (the last one) — a single spot for it
+  // rather than scattering revokes across every place the URL can change.
+  useEffect(() => {
+    return () => {
+      if (thumbPreviewUrl) URL.revokeObjectURL(thumbPreviewUrl);
+    };
+  }, [thumbPreviewUrl]);
+
+  function clearThumb() {
+    setThumb(null);
+    setThumbPreviewUrl(null);
+    if (thumbInputRef.current) thumbInputRef.current.value = "";
+  }
+
+  async function handleThumbPick(e: JSX.TargetedEvent<HTMLInputElement>) {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (thumbInputRef.current) thumbInputRef.current.value = "";
+    if (!file) return;
+    try {
+      const result = await makeThumbnail(file);
+      setThumb(result);
+      setThumbPreviewUrl(URL.createObjectURL(new Blob([result.bytes.slice().buffer], { type: result.mimeType })));
+      setError("");
+    } catch {
+      setError(t("board.thumbError"));
+    }
+  }
 
   function reset() {
     setTitle("");
     setText("");
     setRoles("");
     setTags("");
+    setCapacity("");
     setError("");
+    clearThumb();
   }
 
   function handleSubmit(e: JSX.TargetedEvent<HTMLFormElement>) {
@@ -57,6 +93,11 @@ export function NodeComposer(props: {
       setError(t("board.errRecruitTitle"));
       return;
     }
+    const parsedCapacity = Number.parseInt(capacity, 10);
+    const capacityValue =
+      isProject && capacity.trim() && Number.isInteger(parsedCapacity) && parsedCapacity > 0
+        ? parsedCapacity
+        : undefined;
     onSubmit({
       parentId,
       kind: mode === "root" ? kind : "text",
@@ -64,6 +105,8 @@ export function NodeComposer(props: {
       text: text.trim(),
       roles: isProject ? splitTokens(roles) : undefined,
       tags: isProject ? splitTokens(tags) : undefined,
+      thumb: thumb ?? undefined,
+      capacity: capacityValue,
     });
     reset();
   }
@@ -129,6 +172,48 @@ export function NodeComposer(props: {
             value={tags}
             onInput={(e) => setTags((e.target as HTMLInputElement).value)}
           />
+          <input
+            type="number"
+            min="1"
+            class="composer-capacity"
+            placeholder={t("board.capacityPlaceholder")}
+            value={capacity}
+            onInput={(e) => setCapacity((e.target as HTMLInputElement).value)}
+          />
+        </div>
+      )}
+
+      {mode === "root" && (
+        <div class="composer-thumb-row">
+          <input
+            ref={thumbInputRef}
+            type="file"
+            accept="image/*"
+            class="file-input"
+            onChange={handleThumbPick}
+          />
+          {thumbPreviewUrl ? (
+            <div class="composer-thumb-preview">
+              <img src={thumbPreviewUrl} alt={t("board.thumbAlt")} />
+              <button
+                type="button"
+                class="composer-thumb-remove"
+                aria-label={t("board.thumbRemove")}
+                title={t("board.thumbRemove")}
+                onClick={clearThumb}
+              >
+                ×
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              class="composer-thumb-add"
+              onClick={() => thumbInputRef.current?.click()}
+            >
+              🖼 {t("board.thumbAdd")}
+            </button>
+          )}
         </div>
       )}
 

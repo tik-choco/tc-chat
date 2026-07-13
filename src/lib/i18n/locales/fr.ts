@@ -131,6 +131,13 @@ export const fr: Messages = {
     deletePostMessage: "Supprimer cette publication ? Cette action est irréversible.",
     titlePlaceholder: "Titre",
 
+    // Thumbnail image (composer + node view)
+    thumbAdd: "Ajouter une miniature",
+    thumbChange: "Changer la miniature",
+    thumbRemove: "Supprimer la miniature",
+    thumbAlt: "Image miniature",
+    thumbError: "Impossible de charger l'image",
+
     // Composer (NodeComposer)
     titleOptionalPlaceholder: "Titre (facultatif)",
     recruitTitlePlaceholder: "Titre de l'annonce",
@@ -149,6 +156,14 @@ export const fr: Messages = {
     importArticleChip: "Importer l'article tc-note : {title}",
     importArticleDismiss: "Ignorer",
     // --- end note-article import chip ---
+
+    // --- recruit join / capacity ---
+    joinWish: "Intéressé",
+    joinCount: "{count} intéressés",
+    joinCountCap: "Intéressés {count}/{capacity}",
+    capacityPlaceholder: "Places (facultatif)",
+    backToList: "Retour à la liste",
+    // --- end recruit join / capacity ---
   },
 
   media: {

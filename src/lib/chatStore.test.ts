@@ -10,6 +10,8 @@ import {
   applyPostDelete,
   appendWireLog,
   loadWireLog,
+  loadLastView,
+  saveLastView,
   type PostNode,
   type PostSurface,
 } from "./chatStore";
@@ -390,6 +392,123 @@ describe("chatStore", () => {
     expect(posts.find((p) => p.id === "b")?.deleted).toBe(true);
   });
 
+  it("appendPost/loadPosts round-trips a thumbCid on a board post", () => {
+    appendPost(
+      post({
+        id: "thumb1",
+        roomId: "r1",
+        title: "With thumbnail",
+        thumbCid: "cid-thumb",
+        thumbMimeType: "image/webp",
+      }),
+    );
+    const loaded = loadPosts("board", "r1").find((p) => p.id === "thumb1")!;
+    expect(loaded.thumbCid).toBe("cid-thumb");
+    expect(loaded.thumbMimeType).toBe("image/webp");
+  });
+
+  it("applyPostDelete clears thumbCid/thumbMimeType on tombstone", () => {
+    appendPost(
+      post({
+        id: "thumb2",
+        roomId: "r1",
+        fromId: "author",
+        thumbCid: "cid-thumb",
+        thumbMimeType: "image/webp",
+      }),
+    );
+    applyPostDelete("board", "r1", "thumb2", "author");
+    const tomb = loadPosts("board", "r1").find((p) => p.id === "thumb2")!;
+    expect(tomb.deleted).toBe(true);
+    expect(tomb.thumbCid).toBeUndefined();
+    expect(tomb.thumbMimeType).toBeUndefined();
+  });
+
+  it("applyPostEdit replaces a thumbnail and can clear it (undefined in the patch)", () => {
+    appendPost(
+      post({
+        id: "thumb3",
+        roomId: "r1",
+        fromId: "author",
+        thumbCid: "cid-old-thumb",
+        thumbMimeType: "image/png",
+      }),
+    );
+    applyPostEdit("board", "r1", "thumb3", "author", {
+      cid: "cid-new",
+      text: "hi",
+      editedAt: 1,
+      thumbCid: "cid-new-thumb",
+      thumbMimeType: "image/webp",
+    });
+    let edited = loadPosts("board", "r1").find((p) => p.id === "thumb3")!;
+    expect(edited.thumbCid).toBe("cid-new-thumb");
+    expect(edited.thumbMimeType).toBe("image/webp");
+
+    // Omitting thumbCid/thumbMimeType from the patch clears them (the same
+    // unconditional-assignment semantics as every other editable field).
+    applyPostEdit("board", "r1", "thumb3", "author", { cid: "cid-new2", text: "hi", editedAt: 2 });
+    edited = loadPosts("board", "r1").find((p) => p.id === "thumb3")!;
+    expect(edited.thumbCid).toBeUndefined();
+    expect(edited.thumbMimeType).toBeUndefined();
+  });
+
+  it("appendPost/loadPosts round-trips a capacity on a project board post", () => {
+    appendPost(
+      post({
+        id: "cap1",
+        roomId: "r1",
+        kind: "project",
+        title: "Team recruiting",
+        capacity: 4,
+      }),
+    );
+    const loaded = loadPosts("board", "r1").find((p) => p.id === "cap1")!;
+    expect(loaded.capacity).toBe(4);
+  });
+
+  it("applyPostDelete clears capacity on tombstone", () => {
+    appendPost(
+      post({
+        id: "cap2",
+        roomId: "r1",
+        fromId: "author",
+        kind: "project",
+        capacity: 3,
+      }),
+    );
+    applyPostDelete("board", "r1", "cap2", "author");
+    const tomb = loadPosts("board", "r1").find((p) => p.id === "cap2")!;
+    expect(tomb.deleted).toBe(true);
+    expect(tomb.capacity).toBeUndefined();
+  });
+
+  it("applyPostEdit replaces capacity and can clear it (omitted from the patch)", () => {
+    appendPost(
+      post({
+        id: "cap3",
+        roomId: "r1",
+        fromId: "author",
+        kind: "project",
+        capacity: 2,
+      }),
+    );
+    applyPostEdit("board", "r1", "cap3", "author", {
+      cid: "cid-new",
+      text: "hi",
+      editedAt: 1,
+      capacity: 5,
+    });
+    let edited = loadPosts("board", "r1").find((p) => p.id === "cap3")!;
+    expect(edited.capacity).toBe(5);
+
+    // Omitting capacity from the patch clears it (the same unconditional-
+    // assignment semantics as every other editable field, e.g. thumbCid).
+    applyPostEdit("board", "r1", "cap3", "author", { cid: "cid-new2", text: "hi", editedAt: 2 });
+    edited = loadPosts("board", "r1").find((p) => p.id === "cap3")!;
+    expect(edited.capacity).toBeUndefined();
+  });
+
   it("wire log records wires in order, dedupes by id, and is room-scoped", () => {
     appendWireLog("r1", { id: "a", type: "tc-chat:post" });
     appendWireLog("r1", { id: "a", type: "tc-chat:post" }); // duplicate id
@@ -398,5 +517,31 @@ describe("chatStore", () => {
 
     expect(loadWireLog("r1").map((w) => w.id)).toEqual(["a", "b"]);
     expect(loadWireLog("r2").map((w) => w.id)).toEqual(["c"]);
+  });
+
+  it("last view round-trips through localStorage", () => {
+    saveLastView({ roomId: "my-team", tab: "board", threadId: "t-1" });
+    expect(loadLastView()).toEqual({ roomId: "my-team", tab: "board", threadId: "t-1" });
+
+    saveLastView({ roomId: "global", tab: "chat", threadId: null });
+    expect(loadLastView()).toEqual({ roomId: "global", tab: "chat", threadId: null });
+  });
+
+  it("last view is null when unset and survives garbage or partial records", () => {
+    expect(loadLastView()).toBeNull();
+
+    localStorage.setItem("tc-chat:last-view", "not json");
+    expect(loadLastView()).toBeNull();
+
+    // A record missing its room is useless — better to fall back to default.
+    localStorage.setItem("tc-chat:last-view", JSON.stringify({ tab: "board" }));
+    expect(loadLastView()).toBeNull();
+
+    // An unknown tab (say, from a newer/older build) degrades to chat.
+    localStorage.setItem(
+      "tc-chat:last-view",
+      JSON.stringify({ roomId: "r", tab: "bogus", threadId: 7 }),
+    );
+    expect(loadLastView()).toEqual({ roomId: "r", tab: "chat", threadId: null });
   });
 });

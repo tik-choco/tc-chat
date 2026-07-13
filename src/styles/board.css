@@ -276,6 +276,66 @@
   gap: 0.5rem;
 }
 
+/* ---- Composer thumbnail (root posts only) ---- */
+.composer-thumb-row {
+  display: flex;
+  align-items: center;
+}
+
+.composer-thumb-add {
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+  opacity: 0.85;
+}
+
+.composer-thumb-add:hover {
+  opacity: 1;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.composer-thumb-preview {
+  position: relative;
+  display: inline-flex;
+}
+
+.composer-thumb-preview img {
+  height: 72px;
+  width: auto;
+  max-width: 140px;
+  object-fit: cover;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--border);
+}
+
+.composer-thumb-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 999px;
+  width: 20px;
+  height: 20px;
+  line-height: 1;
+  cursor: pointer;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.composer-thumb-remove:hover {
+  color: var(--danger-text);
+  border-color: var(--danger-text);
+}
+
 .composer-cancel {
   border: 1px solid var(--border);
   background: transparent;
@@ -342,6 +402,28 @@
 .board-node-time {
   font-size: 0.7rem;
   opacity: 0.55;
+}
+
+/* Root-post thumbnail, shown above the title. The button wrapper only resets
+   default button chrome — sizing/appearance live on the img itself so the
+   edit-mode preview (a plain <img>, no button) can share the same look. */
+.board-node-thumb-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: zoom-in;
+  display: block;
+  align-self: flex-start;
+}
+
+.board-node-thumb {
+  display: block;
+  max-width: 100%;
+  max-height: 260px;
+  object-fit: cover;
+  border-radius: var(--radius-m);
+  border: 1px solid var(--border);
+  cursor: zoom-in;
 }
 
 .board-node-title {
@@ -467,6 +549,28 @@
   gap: 0.5rem;
 }
 
+/* Existing-thumbnail editor: small preview + change/remove, above the title
+   input (mirrors the composer's own thumbnail row). */
+.board-node-edit-thumb {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.board-node-edit-thumb-preview {
+  height: 96px;
+  width: auto;
+  max-width: 180px;
+  object-fit: cover;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--border);
+}
+
+.board-node-edit-thumb-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
 /* Nested replies: indentation + a thread line, compounding with depth. */
 .board-node-children {
   margin: 0.5rem 0 0 0.4rem;
@@ -559,4 +663,241 @@
 
 .reaction-palette-btn:hover {
   background: var(--accent-bg);
+}
+
+/* ---- Board card grid (every filter tab) ----
+   A 2-up (auto-fill down to 1) grid of root-post cards — cover image with a
+   kind badge on top, title/excerpt/chips in the body, join/heart/reply counts
+   in the footer (🙋 join only on recruitment cards). Clicking a card opens its
+   full thread in place of the grid; see .board-thread-back for the way back. */
+.project-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.project-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
+  cursor: pointer;
+  transition: box-shadow var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+.project-card:hover {
+  box-shadow: var(--shadow-2);
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.project-card-cover {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: var(--bg-alt);
+}
+
+.project-card-badge {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  font-size: 0.68rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--on-primary);
+  box-shadow: var(--shadow-1);
+}
+
+.project-card-badge--topic {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.project-card-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.project-card-cover--empty {
+  background: linear-gradient(135deg, var(--accent-bg), var(--surface-2));
+}
+
+.project-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: var(--space-4);
+  flex: 1;
+}
+
+.project-card-title {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text-h);
+  word-break: break-word;
+}
+
+.project-card-excerpt {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text);
+  opacity: 0.8;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+
+.project-card-chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.project-card-chips li {
+  font-size: 0.68rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.project-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.6rem var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.project-card-foot-right {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.project-card-join,
+.project-card-heart {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid var(--border);
+  background: var(--bg-alt);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 0.25rem 0.6rem;
+  cursor: pointer;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.project-card-join:hover,
+.project-card-heart:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.project-card-join--mine,
+.project-card-heart--mine {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.project-card-replies {
+  font-size: 0.75rem;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+/* A deleted root whose thread survives: muted, cover-less card that still
+   opens the thread (the replies must stay reachable). */
+.project-card--deleted {
+  opacity: 0.75;
+}
+
+.project-card--deleted:hover {
+  border-color: var(--border);
+  transform: none;
+}
+
+.project-card-deleted-text {
+  margin: 0;
+  font-size: 0.82rem;
+  font-style: italic;
+  opacity: 0.6;
+}
+
+/* ---- Thread detail (recruitment grid → single card opened) ---- */
+.board-thread-back {
+  align-self: flex-start;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+  margin-bottom: 0.25rem;
+}
+
+.board-thread-back:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ---- Contract classes for BoardNodeView's join-interest row (populated by
+   a parallel change) — kept here so the recruitment card grid and the full
+   thread view share one visual language for "🙋 参加希望". ---- */
+.board-node-join-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.board-join-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid var(--border);
+  background: var(--bg-alt);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 0.25rem 0.65rem;
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+
+.board-join-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.board-join-btn--mine {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+/* Recruitment capacity input in the composer — a narrow numeric field
+   alongside the roles/tags row, not a full-width text input. */
+.composer-capacity {
+  flex: none;
+  width: 6rem;
 }

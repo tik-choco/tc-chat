@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { JSX } from "preact";
-import { Images, Upload, Archive, Trash2 } from "lucide-preact";
-import type { PostNode } from "../lib/chatStore";
+import { Images, Upload, Archive, Trash2, Play } from "lucide-preact";
+import type { PostNode, Reaction } from "../lib/chatStore";
 import { identityFor, type ProfileDirectory } from "../lib/profileDirectory";
 import { loadTcStorageFiles, type TcStorageFileEntry } from "../interop/tcStorageFiles";
 import { resolveStorageUrl } from "../lib/mediaUrl";
@@ -19,6 +19,18 @@ import { Lightbox, type LightboxItem } from "./Lightbox";
  * check since every post on this surface is already media/file. */
 function isGalleryMedia(item: PostNode): boolean {
   return !item.deleted && (item.mimeType?.startsWith("image/") || item.mimeType?.startsWith("video/")) === true;
+}
+
+/** Up to 3 distinct emoji (first-seen order) followed by the total reaction
+ * count, e.g. "👍❤️ 5" — a compact passive summary for the tile; the actual
+ * add/remove interaction lives in the Lightbox, not here. */
+function reactionSummary(reactions: Reaction[]): string {
+  const distinct: string[] = [];
+  for (const r of reactions) {
+    if (distinct.length >= 3) break;
+    if (!distinct.includes(r.emoji)) distinct.push(r.emoji);
+  }
+  return `${distinct.join("")} ${reactions.length}`;
 }
 
 function GalleryTile(props: {
@@ -50,6 +62,7 @@ function GalleryTile(props: {
   const { name, avatarCid } = identityFor(directory, item.fromId, item.fromName);
   const isVideo = item.mimeType?.startsWith("video/");
   const alt = item.fileName ?? (isVideo ? t("media.video") : t("media.image"));
+  const reactions = item.reactions ?? [];
 
   return (
     <article class="gallery-tile">
@@ -69,24 +82,43 @@ function GalleryTile(props: {
         ) : (
           <span class="gallery-tile-placeholder">{t("common.loading")}</span>
         )}
-      </button>
-      <div class="gallery-tile-meta">
-        <Avatar id={item.fromId} name={name} avatarCid={avatarCid} size={22} />
-        <span class="gallery-tile-name">{t("media.gallerySharedBy", { name })}</span>
-        <span class="gallery-tile-time">{formatTime(item.timestamp)}</span>
-        {isOwn && (
-          <button
-            type="button"
-            class="gallery-tile-delete"
-            aria-label={t("common.delete")}
-            title={t("common.delete")}
-            onClick={() => setConfirmingDelete(true)}
-          >
-            <Trash2 size={13} />
-          </button>
+        {isVideo && (
+          <span class="gallery-tile-badge" aria-hidden="true">
+            <Play size={12} />
+          </span>
         )}
+        {reactions.length > 0 && (
+          <span class="gallery-tile-reactions" aria-hidden="true">
+            {reactionSummary(reactions)}
+          </span>
+        )}
+        {/* Only inert elements below — this is a <button>, so no nested
+            interactive controls (the aria-label above already names it). */}
+        <span class="gallery-tile-overlay" aria-hidden="true">
+          <Avatar id={item.fromId} name={name} avatarCid={avatarCid} size={22} />
+          <span class="gallery-tile-name">{name}</span>
+          <span class="gallery-tile-time">{formatTime(item.timestamp)}</span>
+        </span>
+      </button>
+      {/* A sibling of the media button, not nested inside it — ReactionBar is
+          interactive (chips + an add-reaction popover), and a <button> can't
+          contain nested interactive controls (same rule as the delete button
+          below). Hover-revealed via gallery.css; the passive
+          .gallery-tile-reactions pill above is the resting-state summary. */}
+      <div class="gallery-tile-react">
+        <ReactionBar reactions={reactions} localId={localId} onToggle={onToggleReaction} />
       </div>
-      <ReactionBar reactions={item.reactions ?? []} localId={localId} onToggle={onToggleReaction} />
+      {isOwn && (
+        <button
+          type="button"
+          class="gallery-tile-delete"
+          aria-label={t("common.delete")}
+          title={t("common.delete")}
+          onClick={() => setConfirmingDelete(true)}
+        >
+          <Trash2 size={13} />
+        </button>
+      )}
       {confirmingDelete && (
         <ConfirmDialog
           title={t("common.delete")}
@@ -145,14 +177,23 @@ export function MediaGalleryView(props: {
   // the same pattern ChatWindow uses for its own mediaItems/Lightbox pairing.
   const lightboxItems = useMemo<LightboxItem[]>(
     () =>
-      media.map((m) => ({
-        key: m.id,
-        kind: m.mimeType?.startsWith("video/") ? "video" : "image",
-        cid: m.cid,
-        fileName: m.fileName,
-        size: m.fileSize,
-      })),
-    [media],
+      media.map((m) => {
+        const { name, avatarCid } = identityFor(directory, m.fromId, m.fromName);
+        return {
+          key: m.id,
+          kind: m.mimeType?.startsWith("video/") ? "video" : "image",
+          cid: m.cid,
+          fileName: m.fileName,
+          size: m.fileSize,
+          fromId: m.fromId,
+          fromName: name,
+          avatarCid,
+          timestamp: m.timestamp,
+          reactions: m.reactions ?? [],
+          canDelete: m.fromId === localNodeId,
+        };
+      }),
+    [media, directory, localNodeId],
   );
   const [lightboxKey, setLightboxKey] = useState<string | null>(null);
   const lightboxIndex = lightboxItems.findIndex((i) => i.key === lightboxKey);
@@ -258,6 +299,9 @@ export function MediaGalleryView(props: {
           index={lightboxIndex}
           onIndexChange={(i) => setLightboxKey(lightboxItems[i]?.key ?? null)}
           onClose={() => setLightboxKey(null)}
+          localId={localNodeId}
+          onToggleReaction={(key, emoji) => onToggleReaction(key, emoji)}
+          onDelete={(key) => onDelete(key)}
         />
       )}
     </div>

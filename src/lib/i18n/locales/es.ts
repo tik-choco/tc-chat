@@ -131,6 +131,13 @@ export const es: Messages = {
     deletePostMessage: "¿Eliminar esta publicación? Esta acción no se puede deshacer.",
     titlePlaceholder: "Título",
 
+    // Thumbnail image (composer + node view)
+    thumbAdd: "Agregar miniatura",
+    thumbChange: "Cambiar miniatura",
+    thumbRemove: "Quitar miniatura",
+    thumbAlt: "Imagen en miniatura",
+    thumbError: "No se pudo cargar la imagen",
+
     // Composer
     titleOptionalPlaceholder: "Título (opcional)",
     recruitTitlePlaceholder: "Título de reclutamiento",
@@ -149,6 +156,14 @@ export const es: Messages = {
     importArticleChip: "Importar artículo de tc-note: {title}",
     importArticleDismiss: "Descartar",
     // --- end note-article import chip ---
+
+    // --- recruit join / capacity ---
+    joinWish: "Interesado/a",
+    joinCount: "{count} interesados",
+    joinCountCap: "Interesados {count}/{capacity}",
+    capacityPlaceholder: "Plazas (opcional)",
+    backToList: "Volver a la lista",
+    // --- end recruit join / capacity ---
   },
 
   media: {

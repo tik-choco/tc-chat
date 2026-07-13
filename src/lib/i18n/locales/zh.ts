@@ -127,6 +127,13 @@ export const zh: Messages = {
     deletePostMessage: "确定要删除这条帖子吗？此操作无法撤销。",
     titlePlaceholder: "标题",
 
+    // Thumbnail image (composer + node view)
+    thumbAdd: "添加缩略图",
+    thumbChange: "更换缩略图",
+    thumbRemove: "删除缩略图",
+    thumbAlt: "缩略图",
+    thumbError: "图片加载失败",
+
     // Composer (NodeComposer)
     titleOptionalPlaceholder: "标题（可选）",
     recruitTitlePlaceholder: "招募标题",
@@ -145,6 +152,14 @@ export const zh: Messages = {
     importArticleChip: "导入 tc-note 文章：{title}",
     importArticleDismiss: "忽略",
     // --- end note-article import chip ---
+
+    // --- recruit join / capacity ---
+    joinWish: "想参加",
+    joinCount: "想参加 {count} 人",
+    joinCountCap: "想参加 {count}/{capacity} 人",
+    capacityPlaceholder: "招募人数（可选）",
+    backToList: "返回列表",
+    // --- end recruit join / capacity ---
   },
 
   media: {
