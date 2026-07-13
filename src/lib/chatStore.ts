@@ -121,7 +121,11 @@ function loadReactionIndex(roomId: string): ReactionIndex {
 }
 
 function saveReactionIndex(roomId: string, index: ReactionIndex) {
-  localStorage.setItem(REACTIONS_KEY_PREFIX + roomId, JSON.stringify(index));
+  try {
+    localStorage.setItem(REACTIONS_KEY_PREFIX + roomId, JSON.stringify(index));
+  } catch (error) {
+    console.warn(`tc-chat: failed to persist reactions for room "${roomId}"`, error);
+  }
 }
 
 // targetId -> the delete wire's fromId, for deletes still waiting on their post.
@@ -141,7 +145,11 @@ function loadPendingDeletes(surface: PostSurface, roomId: string): PendingDelete
 }
 
 function savePendingDeletes(surface: PostSurface, roomId: string, pending: PendingDeletes) {
-  localStorage.setItem(pendingDeletesKey(surface, roomId), JSON.stringify(pending));
+  try {
+    localStorage.setItem(pendingDeletesKey(surface, roomId), JSON.stringify(pending));
+  } catch (error) {
+    console.warn(`tc-chat: failed to persist pending deletes for room "${roomId}"`, error);
+  }
 }
 
 /**
@@ -194,10 +202,31 @@ export function loadPosts(surface: PostSurface, roomId: string): PostNode[] {
 function savePosts(surface: PostSurface, roomId: string, posts: PostNode[]) {
   const trimmed =
     posts.length > MAX_POSTS_PER_ROOM ? posts.slice(posts.length - MAX_POSTS_PER_ROOM) : posts;
+  // Posts trimmed off the front age out for good — prune their entries from
+  // the room's reaction index too, or they'd accumulate forever as orphans
+  // (ids are unique across chat/board, so this can't touch the other surface's
+  // reactions; see the REACTIONS_KEY_PREFIX comment).
+  if (trimmed.length < posts.length) {
+    const keptIds = new Set(trimmed.map((p) => p.id));
+    const dropped = posts.filter((p) => !keptIds.has(p.id));
+    const index = loadReactionIndex(roomId);
+    let changed = false;
+    for (const p of dropped) {
+      if (index[p.id]) {
+        delete index[p.id];
+        changed = true;
+      }
+    }
+    if (changed) saveReactionIndex(roomId, index);
+  }
   // Reactions live in the shared reaction index; keep them out of the post blob
   // so the two never drift or double-persist.
   const bare = trimmed.map(({ reactions: _reactions, ...p }) => p);
-  localStorage.setItem(POSTS_KEY_PREFIX[surface] + roomId, JSON.stringify(bare));
+  try {
+    localStorage.setItem(POSTS_KEY_PREFIX[surface] + roomId, JSON.stringify(bare));
+  } catch (error) {
+    console.warn(`tc-chat: failed to persist posts for room "${roomId}"`, error);
+  }
 }
 
 export function appendPost(node: PostNode): PostNode[] {
@@ -349,7 +378,11 @@ export function appendWireLog(roomId: string, wire: SignedWire): void {
   const next = [...log, wire];
   const trimmed =
     next.length > MAX_WIRE_LOG_PER_ROOM ? next.slice(next.length - MAX_WIRE_LOG_PER_ROOM) : next;
-  localStorage.setItem(WIRE_LOG_KEY_PREFIX + roomId, JSON.stringify(trimmed));
+  try {
+    localStorage.setItem(WIRE_LOG_KEY_PREFIX + roomId, JSON.stringify(trimmed));
+  } catch (error) {
+    console.warn(`tc-chat: failed to persist wire log for room "${roomId}"`, error);
+  }
 }
 
 export function loadRooms(): RoomMeta[] {
@@ -362,7 +395,11 @@ export function loadRooms(): RoomMeta[] {
 }
 
 function saveRooms(rooms: RoomMeta[]) {
-  localStorage.setItem(ROOMS_KEY, JSON.stringify(rooms));
+  try {
+    localStorage.setItem(ROOMS_KEY, JSON.stringify(rooms));
+  } catch (error) {
+    console.warn("tc-chat: failed to persist room list", error);
+  }
 }
 
 export function addRoom(id: string, name: string): RoomMeta[] {
@@ -384,7 +421,11 @@ export function loadUsername(): string {
 }
 
 export function saveUsername(name: string) {
-  localStorage.setItem(USERNAME_KEY, name);
+  try {
+    localStorage.setItem(USERNAME_KEY, name);
+  } catch (error) {
+    console.warn("tc-chat: failed to persist username", error);
+  }
 }
 
 /**
@@ -400,7 +441,11 @@ export function loadChatDisplay(): ChatDisplay {
 }
 
 export function saveChatDisplay(display: ChatDisplay) {
-  localStorage.setItem(CHAT_DISPLAY_KEY, display);
+  try {
+    localStorage.setItem(CHAT_DISPLAY_KEY, display);
+  } catch (error) {
+    console.warn("tc-chat: failed to persist chat display setting", error);
+  }
 }
 
 const DEV_MODE_KEY = "tc-chat:dev-mode";
@@ -410,7 +455,11 @@ export function loadDevMode(): boolean {
 }
 
 export function saveDevMode(enabled: boolean) {
-  localStorage.setItem(DEV_MODE_KEY, enabled ? "1" : "0");
+  try {
+    localStorage.setItem(DEV_MODE_KEY, enabled ? "1" : "0");
+  } catch (error) {
+    console.warn("tc-chat: failed to persist dev mode setting", error);
+  }
 }
 
 const LAST_VIEW_KEY = "tc-chat:last-view";
@@ -438,7 +487,11 @@ export function loadLastView(): AppLocation | null {
 }
 
 export function saveLastView(view: AppLocation) {
-  localStorage.setItem(LAST_VIEW_KEY, JSON.stringify(view));
+  try {
+    localStorage.setItem(LAST_VIEW_KEY, JSON.stringify(view));
+  } catch (error) {
+    console.warn("tc-chat: failed to persist last view", error);
+  }
 }
 
 const MEDIA_CAUTION_KEY = "tc-chat:media-caution";
@@ -454,7 +507,11 @@ export function loadMediaCaution(): boolean {
 }
 
 export function saveMediaCaution(enabled: boolean) {
-  localStorage.setItem(MEDIA_CAUTION_KEY, enabled ? "1" : "0");
+  try {
+    localStorage.setItem(MEDIA_CAUTION_KEY, enabled ? "1" : "0");
+  } catch (error) {
+    console.warn("tc-chat: failed to persist media caution setting", error);
+  }
 }
 
 const ROOM_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
@@ -480,5 +537,9 @@ export function loadGiphyApiKey(): string {
 }
 
 export function saveGiphyApiKey(key: string): void {
-  localStorage.setItem(GIPHY_KEY_STORAGE_KEY, key);
+  try {
+    localStorage.setItem(GIPHY_KEY_STORAGE_KEY, key);
+  } catch (error) {
+    console.warn("tc-chat: failed to persist GIPHY API key", error);
+  }
 }

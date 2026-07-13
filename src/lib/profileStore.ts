@@ -84,10 +84,14 @@ export function loadLocalProfile(did: string): Profile {
 }
 
 export function saveLocalProfile(profile: Profile) {
-  localStorage.setItem(LOCAL_KEY, JSON.stringify(profileToLocalRecord(profile)));
-  // Keep the legacy username key in sync so any code still reading it (and
-  // other tc-* apps) sees the current display name.
-  localStorage.setItem(LEGACY_USERNAME_KEY, profile.displayName);
+  try {
+    localStorage.setItem(LOCAL_KEY, JSON.stringify(profileToLocalRecord(profile)));
+    // Keep the legacy username key in sync so any code still reading it (and
+    // other tc-* apps) sees the current display name.
+    localStorage.setItem(LEGACY_USERNAME_KEY, profile.displayName);
+  } catch (error) {
+    console.warn("tc-chat: failed to persist local profile", error);
+  }
 }
 
 async function readSharedRecord(backend: SharedStorageBackend): Promise<ProfileRecord | undefined> {
@@ -136,5 +140,9 @@ export async function publishSharedProfile(
   // existing (spread) value untouched.
   if (profile.vrm.trim()) merged.vrm = profile.vrm.trim();
   const cid = await backend.store(encoder.encode(JSON.stringify(merged)));
-  localStorage.setItem(SHARED_CID_KEY, cid);
+  try {
+    localStorage.setItem(SHARED_CID_KEY, cid);
+  } catch (error) {
+    console.warn("tc-chat: failed to persist shared profile CID pointer", error);
+  }
 }

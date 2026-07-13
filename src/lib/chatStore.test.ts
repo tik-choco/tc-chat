@@ -190,6 +190,29 @@ describe("chatStore", () => {
     expect(loadPosts("chat", "r1")[0].reactions).toHaveLength(1);
   });
 
+  it("prunes the reaction index when a room's post history is trimmed past the cap", () => {
+    const roomId = "trim-room";
+    appendPost(post({ id: "old", roomId, surface: "chat", timestamp: 0, text: "first ever" }));
+    applyReaction(roomId, "old", { emoji: "👍", fromId: "u1", fromName: "U1" }, "add");
+    expect(loadPosts("chat", roomId).find((p) => p.id === "old")?.reactions).toHaveLength(1);
+
+    // Push the room's history past MAX_POSTS_PER_ROOM (500) so "old" ages out
+    // of the cap and savePosts trims it off.
+    for (let i = 0; i < 500; i++) {
+      appendPost(post({ id: `p${i}`, roomId, surface: "chat", timestamp: i + 1, text: `msg ${i}` }));
+    }
+
+    const posts = loadPosts("chat", roomId);
+    expect(posts).toHaveLength(500);
+    expect(posts.find((p) => p.id === "old")).toBeUndefined();
+
+    // The trimmed-out post's reaction entry must not linger forever as an
+    // orphan in the room's reaction index.
+    const raw = localStorage.getItem(`tc-chat:reactions:${roomId}`);
+    const index = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+    expect(index.old).toBeUndefined();
+  });
+
   it("applyPostEdit updates body fields and editedAt for the matching author", () => {
     appendPost(post({ id: "e1", roomId: "r1", fromId: "author", cid: "cid-old", text: "old" }));
     applyPostEdit("board", "r1", "e1", "author", { cid: "cid-new", text: "new", editedAt: 999 });
