@@ -95,7 +95,9 @@
 .board-empty-cta,
 .copy-line-btn,
 .profile-did-copy,
-.room-join-form button {
+.room-join-form button,
+.call-ctl-btn,
+.call-join-btn {
   transition:
     transform var(--dur-fast) var(--ease),
     background-color var(--dur-fast) var(--ease),
@@ -115,7 +117,9 @@
 .board-empty-cta:active,
 .copy-line-btn:active,
 .profile-did-copy:active,
-.room-join-form button:active {
+.room-join-form button:active,
+.call-ctl-btn:active,
+.call-join-btn:active {
   transform: scale(0.97);
 }
 
