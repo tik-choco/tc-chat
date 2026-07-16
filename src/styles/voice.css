@@ -1,49 +1,151 @@
-.voice-panel {
-  display: flex;
+/* Call controls: the topbar cluster (CallControls) that starts/manages a
+   voice+video+screen-share call, and the participant chips shown both in the
+   topbar's join button and in the slim CallDock strip under it. */
+
+/* ---- CallControls (lives in .topbar-actions) ---- */
+.call-controls {
+  display: inline-flex;
   align-items: center;
+  gap: 0.4rem;
 }
 
-.voice-btn {
-  border: 1px solid var(--border);
-  background: var(--bg-alt);
-  color: var(--text-h);
-  border-radius: 20px;
-  padding: 0.4rem 0.9rem;
-  cursor: pointer;
-}
-
-.voice-btn--join {
+/* Primary action: join the call. Reuses the success palette so it reads as
+   "safe to press". */
+.call-join-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
   background: var(--success-bg);
   color: var(--success);
-  border-color: transparent;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
-.voice-btn--leave {
-  background: var(--danger-bg);
-  color: var(--danger);
-  border-color: transparent;
+.call-join-btn:hover {
+  border-color: var(--success);
 }
 
-.voice-controls {
-  display: flex;
+.call-join-count {
+  display: inline-block;
+  min-width: 1.4em;
+  padding: 0 0.4em;
+  border-radius: 999px;
+  background: var(--surface);
+  color: inherit;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* Segmented cluster of in-call controls (mic / camera / share / leave). */
+.call-controls-group {
+  display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
 }
 
-.voice-status {
-  font-size: 0.85rem;
-  opacity: 0.8;
+.call-ctl-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.call-ctl-btn:hover {
+  background: var(--surface-2);
+  color: var(--text-h);
+}
+
+/* Broadcasting state — camera or screen share currently on. */
+.call-ctl-btn--live {
+  background: var(--danger-soft);
+  color: var(--danger-text);
+}
+
+.call-ctl-btn--live:hover {
+  background: var(--danger-soft);
+  color: var(--danger-text);
+}
+
+/* Mic muted. */
+.call-ctl-btn--muted {
+  background: var(--surface-2);
+  color: var(--danger-text);
+}
+
+.call-ctl-btn--leave {
+  color: var(--danger-text);
+}
+
+.call-ctl-btn--leave:hover {
+  background: var(--danger-soft);
+  color: var(--danger-text);
+}
+
+/* Standalone ghost control outside the segmented group (e.g. the VRChat
+   relay guide shortcut) — slightly larger, no grouping chrome. */
+.call-ctl-btn--ghost {
+  width: 30px;
+  height: 30px;
+  color: var(--text-muted);
+}
+
+.call-ctl-btn--ghost:hover {
+  background: var(--surface-2);
+}
+
+/* ---- CallDock: slim strip between the topbar and the message stream ---- */
+.call-dock {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 0.8rem;
+}
+
+.call-dock-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
-.voice-participants {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.3rem;
+.call-dock-note {
+  font-size: 0.78rem;
+  color: var(--text-muted);
 }
 
+.call-dock-note--error {
+  color: var(--danger-text);
+}
+
+/* ---- Participant chips (used both in the dock and the join button) ---- */
 .voice-chip {
   display: inline-flex;
   align-items: center;
@@ -82,31 +184,6 @@
 
 .voice-chip-mic {
   font-size: 0.7rem;
-}
-
-.screen-share-panel {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.screen-share-error {
-  font-size: 0.85rem;
-  color: var(--danger);
-}
-
-/* Non-blocking hint (e.g. "sharing without audio") -- distinct from
- * .screen-share-error since nothing actually failed, the browser just gave
- * us less than we asked for. */
-.screen-share-hint {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
-.screen-share-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
 }
 
 .screen-share-video {

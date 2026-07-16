@@ -16,8 +16,8 @@ svg.lucide {
 /* Icon + text controls: single centered row with a consistent gap. */
 .room-tab,
 .segmented-btn,
-.voice-btn,
-.voice-status,
+.call-join-btn,
+.call-dock-status,
 .pill-btn,
 .send-btn,
 .composer-kind-btn,

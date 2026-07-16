@@ -6,10 +6,9 @@ import type { TcStorageFileEntry } from "../interop/tcStorageFiles";
 import { Hash, Globe, User, AlertTriangle, Pencil } from "lucide-preact";
 import { MessageBubble, groupPosAt } from "./MessageBubble";
 import { MessageInput } from "./MessageInput";
-import { VoicePanel } from "./VoicePanel";
-import { ScreenShareView } from "./ScreenShareView";
+import { CallControls } from "./CallControls";
+import { CallDock } from "./CallDock";
 import { RemoteScreenStage } from "./RemoteScreenStage";
-import { VideoCallPanel } from "./VideoCallPanel";
 import { VideoCallStage } from "./VideoCallStage";
 import { MediaCautionDialog } from "./MediaCautionDialog";
 import { Lightbox, type LightboxItem } from "./Lightbox";
@@ -85,9 +84,19 @@ export function ChatWindow(props: {
   function startVideoCall() {
     // Camera-on implies being in the call: join voice too if not already
     // joined. Stopping the camera later only turns it off -- it does not
-    // leave voice (see the videoCall.stop wiring below).
+    // leave voice (see the videoCall.stop wiring below). Leaving the call
+    // (leaveCall, below) is the one that also turns the camera off.
     if (!voice.joined) voice.join();
     videoCall.start();
+  }
+
+  // Leaving the call also turns the camera off (camera-on implies being in
+  // the call, so leaving while broadcasting camera would orphan the tiles).
+  // Screen share intentionally keeps running -- it's independent of the
+  // voice call, so you can present without being in it.
+  function leaveCall() {
+    if (videoCall.on) videoCall.stop();
+    voice.leave();
   }
 
   function requestCaution(kind: "camera" | "screen") {
@@ -164,37 +173,39 @@ export function ChatWindow(props: {
             <span class="btn-label room-nickname-btn-label">{selfName}</span>
           </button>
           {roomId !== GLOBAL_ROOM_ID && (
-            <>
-              <VoicePanel
-                joined={voice.joined}
-                muted={voice.muted}
-                remoteTracks={voice.remoteTracks}
-                peers={peers}
-                selfId={localNodeId ?? ""}
-                selfName={selfName}
-                onJoin={voice.join}
-                onLeave={voice.leave}
-                onToggleMute={voice.toggleMute}
-                onOpenProfile={onOpenProfile}
-              />
-              <ScreenShareView
-                roomId={roomId}
-                sharing={screenShare.sharing}
-                error={screenShare.error}
-                audioMissing={screenShare.audioMissing}
-                onStart={() => requestCaution("screen")}
-                onStop={screenShare.stop}
-              />
-              <VideoCallPanel
-                on={videoCall.on}
-                remoteCount={videoCall.remoteTracks.length}
-                onStart={() => requestCaution("camera")}
-                onStop={videoCall.stop}
-              />
-            </>
+            <CallControls
+              roomId={roomId}
+              joined={voice.joined}
+              muted={voice.muted}
+              remoteVoiceCount={new Set(voice.remoteTracks.map((t) => t.fromId)).size}
+              cameraOn={videoCall.on}
+              sharing={screenShare.sharing}
+              onJoin={voice.join}
+              onLeave={leaveCall}
+              onToggleMute={voice.toggleMute}
+              onCameraStart={() => requestCaution("camera")}
+              onCameraStop={videoCall.stop}
+              onShareStart={() => requestCaution("screen")}
+              onShareStop={screenShare.stop}
+            />
           )}
         </div>
       </header>
+
+      {roomId !== GLOBAL_ROOM_ID && (
+        <CallDock
+          joined={voice.joined}
+          muted={voice.muted}
+          remoteTracks={voice.remoteTracks}
+          peers={peers}
+          selfId={localNodeId ?? ""}
+          selfName={selfName}
+          cameraError={videoCall.error}
+          shareError={screenShare.error}
+          shareAudioMissing={screenShare.sharing && !!screenShare.audioMissing}
+          onOpenProfile={onOpenProfile}
+        />
+      )}
 
       <div class="chat-scroll" ref={scrollRef}>
         <RemoteScreenStage tracks={screenShare.remoteTracks} />

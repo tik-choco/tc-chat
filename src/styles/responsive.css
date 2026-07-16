@@ -81,11 +81,12 @@
   }
 
   /* --- Compact header controls -------------------------------------
-     The room title and the voice / screen-share / VRChat controls used
-     to fight for one narrow row and wrapped into an overlapping mess.
-     On mobile the controls collapse to their emoji (labels hidden, see
-     .btn-label spans in VoicePanel / ScreenShareView), so the title
-     keeps its space and the bar stays a single tidy row. */
+     The room title and the call controls (join / mic / camera / share /
+     VRChat) used to fight for one narrow row and wrapped into an
+     overlapping mess. On mobile the controls collapse to their icon
+     (labels hidden, see the .btn-label span in CallControls' join
+     button), so the title keeps its space and the bar stays a single
+     tidy row. */
   .btn-label {
     display: none;
   }
@@ -100,14 +101,9 @@
     gap: 0.3rem;
   }
 
-  .topbar-actions .voice-btn,
+  .topbar-actions .call-join-btn,
   .topbar-actions .pill-btn {
     padding: 0.45rem 0.6rem;
-  }
-
-  /* Redundant on mobile — the participant chips already show the call. */
-  .voice-status {
-    display: none;
   }
 
   /* --- Tighter gutters --------------------------------------------- */
@@ -117,6 +113,12 @@
   .message-input,
   .chat-scroll,
   .board-scroll {
+    padding-left: 0.9rem;
+    padding-right: 0.9rem;
+  }
+
+  /* Match the tightened topbar gutter above it. */
+  .call-dock {
     padding-left: 0.9rem;
     padding-right: 0.9rem;
   }

@@ -1,17 +1,6 @@
-/* Video call: topbar control (VideoCallPanel) + the camera tile grid
-   (VideoCallStage), shown above the message stream next to .screen-stage. */
-
-.video-call-panel {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.video-call-count {
-  font-size: 0.85rem;
-  opacity: 0.8;
-  white-space: nowrap;
-}
+/* Video call: the camera tile grid (VideoCallStage), shown above the
+   message stream next to .screen-stage. The topbar join/leave/camera
+   controls live in voice.css (.call-controls / .call-dock). */
 
 .camera-stage {
   display: grid;

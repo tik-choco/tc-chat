@@ -5,6 +5,9 @@ import type { Peer } from "../hooks/usePresence";
 import { Avatar } from "./Avatar";
 import { useT } from "../lib/i18n";
 
+/** Hidden audio sink for one remote voice track. Rendered unconditionally for
+ * every track regardless of whether the visual participant strip below is
+ * shown, so playback never depends on strip visibility. */
 function RemoteAudio(props: { track: RemoteAudioTrack }) {
   const ref = useRef<HTMLAudioElement | null>(null);
   useEffect(() => {
@@ -49,16 +52,23 @@ function VoiceChip(props: {
   return <span class={`voice-chip ${props.self ? "voice-chip--self" : ""}`}>{inner}</span>;
 }
 
-export function VoicePanel(props: {
+/**
+ * Participant strip + status notes for the active call, decoupled from
+ * CallControls' buttons. Always renders the hidden `<audio>` sinks (so remote
+ * voice keeps playing even while the visual strip is hidden), and shows the
+ * visible strip only once there is something worth showing: joined, a remote
+ * voice participant, or a camera/share error/note to surface.
+ */
+export function CallDock(props: {
   joined: boolean;
   muted: boolean;
   remoteTracks: RemoteAudioTrack[];
   peers: Peer[];
   selfId: string;
   selfName: string;
-  onJoin: () => void;
-  onLeave: () => void;
-  onToggleMute: () => void;
+  cameraError: string | null;
+  shareError: string | null;
+  shareAudioMissing: boolean;
   onOpenProfile?: (did: string, fallbackName: string) => void;
 }) {
   const {
@@ -68,9 +78,9 @@ export function VoicePanel(props: {
     peers,
     selfId,
     selfName,
-    onJoin,
-    onLeave,
-    onToggleMute,
+    cameraError,
+    shareError,
+    shareAudioMissing,
     onOpenProfile,
   } = props;
   const t = useT();
@@ -83,19 +93,21 @@ export function VoicePanel(props: {
   // ourselves have joined, so participants are visible before joining too.
   const remoteParticipants = [...new Map(remoteTracks.map((t) => [t.fromId, t])).values()];
   const count = remoteParticipants.length + (joined ? 1 : 0);
-  const inCall = joined || remoteParticipants.length > 0;
+  const visible =
+    joined || remoteParticipants.length > 0 || !!cameraError || !!shareError || shareAudioMissing;
+
+  const audioElements = remoteTracks.map((t) => <RemoteAudio key={t.trackId} track={t} />);
 
   return (
-    <div class="voice-panel">
-      {remoteTracks.map((t) => (
-        <RemoteAudio key={t.trackId} track={t} />
-      ))}
-
-      {inCall && (
-        <div class="voice-participants" title={t("media.inCall")}>
-          <span class="voice-status">
-            <Volume2 size={14} /> {t("media.participantCount", { count })}
-          </span>
+    <>
+      {audioElements}
+      {visible && (
+        <div class="call-dock">
+          {(joined || remoteParticipants.length > 0) && (
+            <span class="call-dock-status" title={t("media.inCall")}>
+              <Volume2 size={14} /> {t("media.participantCount", { count })}
+            </span>
+          )}
           {joined && <VoiceChip id={selfId || selfName} name={selfName} self muted={muted} />}
           {remoteParticipants.map((t) => {
             const did = didFor(t.fromId);
@@ -110,39 +122,13 @@ export function VoicePanel(props: {
               />
             );
           })}
+          {cameraError && <span class="call-dock-note call-dock-note--error">{cameraError}</span>}
+          {shareError && <span class="call-dock-note call-dock-note--error">{shareError}</span>}
+          {shareAudioMissing && (
+            <span class="call-dock-note">{t("media.noAudioCaptured")}</span>
+          )}
         </div>
       )}
-
-      {!joined ? (
-        <button
-          type="button"
-          class="voice-btn voice-btn--join"
-          onClick={onJoin}
-          title={t("media.joinVoice")}
-        >
-          <Mic size={16} />{" "}
-          <span class="btn-label">
-            {count > 0 ? t("media.joinCallCount", { count }) : t("media.joinCall")}
-          </span>
-        </button>
-      ) : (
-        <div class="voice-controls">
-          <button type="button" class="voice-btn" onClick={onToggleMute}>
-            {muted ? (
-              <>
-                <MicOff size={15} /> {t("media.unmute")}
-              </>
-            ) : (
-              <>
-                <Mic size={15} /> {t("media.mute")}
-              </>
-            )}
-          </button>
-          <button type="button" class="voice-btn voice-btn--leave" onClick={onLeave}>
-            {t("media.leave")}
-          </button>
-        </div>
-      )}
-    </div>
+    </>
   );
 }
