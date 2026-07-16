@@ -47,7 +47,7 @@ export function Sidebar(props: {
   onOpenPeerProfile: (did: string, fallbackName: string) => void;
   /** All statuses — filter by status in the sections below. */
   friends: Friend[];
-  directory: ProfileDirectory;
+  directoryFor: (roomId: string) => ProfileDirectory;
   onRemoveFriend: (did: string) => void;
   onAcceptRequest: (did: string) => void;
   onDeclineRequest: (did: string) => void;
@@ -72,7 +72,7 @@ export function Sidebar(props: {
     peers,
     onOpenPeerProfile,
     friends,
-    directory,
+    directoryFor,
     onRemoveFriend,
     onAcceptRequest,
     onDeclineRequest,
@@ -306,7 +306,7 @@ export function Sidebar(props: {
           </div>
           <ul class="friend-list">
             {incomingRequests.map((friend) => {
-              const { name } = identityFor(directory, friend.did, friend.name);
+              const { name } = identityFor(directoryFor(friend.roomId), friend.did, friend.name);
               return (
                 <li key={friend.did}>
                   <button
@@ -342,7 +342,7 @@ export function Sidebar(props: {
               );
             })}
             {outgoingRequests.map((friend) => {
-              const { name } = identityFor(directory, friend.did, friend.name);
+              const { name } = identityFor(directoryFor(friend.roomId), friend.did, friend.name);
               return (
                 <li key={friend.did}>
                   <button
@@ -377,7 +377,7 @@ export function Sidebar(props: {
         <ul class="friend-list">
           {acceptedFriends.length === 0 && <li class="friend-empty">{t("friends.empty")}</li>}
           {acceptedFriends.map((friend) => {
-            const { name } = identityFor(directory, friend.did, friend.name);
+            const { name } = identityFor(directoryFor(friend.roomId), friend.did, friend.name);
             const online = onlineDids.has(friend.did);
             return (
               <li key={friend.did}>

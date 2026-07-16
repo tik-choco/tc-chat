@@ -26,6 +26,7 @@ import { SettingsPanel } from "./components/SettingsPanel";
 import { DevConsole } from "./components/DevConsole";
 import { Onboarding } from "./components/Onboarding";
 import { PersonalCalendarPanel } from "./components/PersonalCalendarPanel";
+import { RoomNamePanel } from "./components/RoomNamePanel";
 import { useRooms } from "./hooks/useRooms";
 import { useFriends } from "./hooks/useFriends";
 import { useChatRoom } from "./hooks/useChatRoom";
@@ -40,6 +41,7 @@ import { useHistorySync } from "./hooks/useHistorySync";
 import { useMessageAlerts } from "./hooks/useMessageAlerts";
 import { useProfile } from "./hooks/useProfile";
 import { useProfileDirectory } from "./hooks/useProfileDirectory";
+import { useRoomDisplayName } from "./hooks/useRoomDisplayName";
 import { useTheme } from "./hooks/useTheme";
 import {
   loadUsername,
@@ -95,11 +97,15 @@ export function App() {
   const [mediaCaution, setMediaCaution] = useState<boolean>(() => loadMediaCaution());
   const [onboardingOpen, setOnboardingOpen] = useState(() => shouldShowOnboarding());
   const [personalCalendarOpen, setPersonalCalendarOpen] = useState(false);
+  const [roomNameOpen, setRoomNameOpen] = useState(false);
 
   const t = useT();
   const theme = useTheme();
   const { profile, saveProfile } = useProfile(nodeId);
   const displayName = profile?.displayName || username;
+  const { override: roomNameOverride, setOverride: setRoomNameOverride } =
+    useRoomDisplayName(activeRoomId);
+  const roomDisplayName = roomNameOverride || displayName;
 
   const { rooms, joinRoom, leaveRoom } = useRooms();
   const {
@@ -109,7 +115,7 @@ export function App() {
     declineFriendRequest,
     cancelFriendRequest,
     removeFriend,
-  } = useFriends(activeRoomId, nodeId, displayName);
+  } = useFriends(activeRoomId, nodeId, roomDisplayName);
   const personalEvents = usePersonalEvents();
   const {
     status,
@@ -123,7 +129,7 @@ export function App() {
     deleteMessage,
     typingNames,
     notifyTyping,
-  } = useChatRoom(username ? activeRoomId : null, displayName);
+  } = useChatRoom(username ? activeRoomId : null, roomDisplayName);
   // The board is the "board" surface of the same post engine — recursive
   // (parentId), so a comment is just a post whose parentId points at another.
   const {
@@ -132,14 +138,14 @@ export function App() {
     toggleReaction: toggleBoardReaction,
     editPost: editNode,
     deletePost: deleteNode,
-  } = usePostStream(status === "joined" ? activeRoomId : null, "board", displayName);
+  } = usePostStream(status === "joined" ? activeRoomId : null, "board", roomDisplayName);
   // The room calendar is the "calendar" surface of the same post engine.
   const { events, createEvent, editEvent, deleteEvent } = useCalendarEvents(
     status === "joined" ? activeRoomId : null,
-    displayName,
+    roomDisplayName,
   );
   // The shared media gallery is the "gallery" surface of the same post engine.
-  const gallery = useMediaGallery(status === "joined" ? activeRoomId : null, displayName);
+  const gallery = useMediaGallery(status === "joined" ? activeRoomId : null, roomDisplayName);
   // The global room is joinable by anyone, so voice/screen share/video call
   // (which would otherwise broadcast to whoever happens to be present) are
   // disabled there.
@@ -157,7 +163,11 @@ export function App() {
     friends,
   );
   // Share our profile with peers and collect theirs (names + avatars).
-  const { directory } = useProfileDirectory(status === "joined" ? activeRoomId : null, profile);
+  const { directory, directoryFor } = useProfileDirectory(
+    status === "joined" ? activeRoomId : null,
+    profile,
+    roomDisplayName,
+  );
 
   useEffect(() => {
     if (!username) return;
@@ -337,7 +347,7 @@ export function App() {
         peers={peers}
         onOpenPeerProfile={(did, name) => setPeerProfile({ did, name })}
         friends={friends}
-        directory={directory}
+        directoryFor={directoryFor}
         onRemoveFriend={handleRemoveFriend}
         onAcceptRequest={acceptFriendRequest}
         onDeclineRequest={declineFriendRequest}
@@ -366,7 +376,7 @@ export function App() {
           chatDisplay,
           directory,
           peers,
-          selfName: displayName,
+          selfName: roomDisplayName,
           typingNames,
           onTyping: notifyTyping,
           onSendText: sendText,
@@ -376,6 +386,7 @@ export function App() {
           onEditMessage: editMessage,
           onDeleteMessage: deleteMessage,
           onOpenProfile: (did, name) => setPeerProfile({ did, name }),
+          onEditSelfRoomName: () => setRoomNameOpen(true),
           voice,
           screenShare,
           videoCall,
@@ -453,6 +464,16 @@ export function App() {
           onEdit={personalEvents.editEvent}
           onRemove={personalEvents.removeEvent}
           onClose={() => setPersonalCalendarOpen(false)}
+        />
+      )}
+
+      {roomNameOpen && (
+        <RoomNamePanel
+          roomName={roomName}
+          globalName={displayName}
+          value={roomNameOverride}
+          onSave={setRoomNameOverride}
+          onClose={() => setRoomNameOpen(false)}
         />
       )}
 

@@ -275,6 +275,13 @@ export const zh: Messages = {
     noOtherPeers: "暂无其他成员",
     viewPeerProfile: "查看 {name} 的资料",
 
+    // RoomNamePanel
+    roomNicknameEdit: "修改你在此房间的显示名称",
+    roomNicknameTitle: "你在此房间的名称",
+    roomNicknamePlaceholder: "{name}（个人资料显示名称）",
+    roomNicknameHint:
+      "你在此房间发送的消息和帖子将使用这个名称，并共享给房间成员。留空则使用个人资料中的显示名称。",
+
     // VrchatGuide — sentence fragments keep the surrounding <strong>/<code>
     // markup; spaces at the fragment edges are part of the rendered text.
     vrchatGuideTitle: "在 VRChat 中观看屏幕共享",

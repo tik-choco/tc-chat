@@ -275,6 +275,13 @@ export const ko: Messages = {
     noOtherPeers: "아직 다른 참가자가 없어요",
     viewPeerProfile: "{name}님의 프로필 보기",
 
+    // RoomNamePanel
+    roomNicknameEdit: "이 룸에서의 표시 이름 변경",
+    roomNicknameTitle: "이 룸에서의 이름",
+    roomNicknamePlaceholder: "{name} (프로필 표시 이름)",
+    roomNicknameHint:
+      "이 룸에서 보내는 메시지와 게시물에 이 이름이 사용되며 룸 참가자에게 공유됩니다. 비워 두면 프로필 표시 이름을 사용합니다.",
+
     // VrchatGuide — sentence fragments keep the surrounding <strong>/<code>
     // markup; spaces at the fragment edges are part of the rendered text.
     vrchatGuideTitle: "VRChat에서 화면 공유 보기",

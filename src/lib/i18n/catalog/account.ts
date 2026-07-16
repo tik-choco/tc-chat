@@ -56,6 +56,13 @@ const ja = {
   noOtherPeers: "他に参加者はいません",
   viewPeerProfile: "{name} のプロフィールを表示",
 
+  // RoomNamePanel
+  roomNicknameEdit: "このルームでの自分の表示名を変更",
+  roomNicknameTitle: "このルームでの表示名",
+  roomNicknamePlaceholder: "{name}（プロフィールの表示名）",
+  roomNicknameHint:
+    "このルームで送信するメッセージ・投稿にこの名前が使われ、ルームの参加者に共有されます。空欄にするとプロフィールの表示名に戻ります。",
+
   // VrchatGuide — sentence fragments keep the surrounding <strong>/<code>
   // markup; spaces at the fragment edges are part of the rendered text.
   vrchatGuideTitle: "VRChat で画面共有を見る",
@@ -131,6 +138,13 @@ const en: typeof ja = {
   online: "Online ({count})",
   noOtherPeers: "No one else is here",
   viewPeerProfile: "View {name}'s profile",
+
+  // RoomNamePanel
+  roomNicknameEdit: "Change your display name in this room",
+  roomNicknameTitle: "Your name in this room",
+  roomNicknamePlaceholder: "{name} (profile display name)",
+  roomNicknameHint:
+    "This name is used for messages and posts you send in this room and is shared with its members. Leave it empty to fall back to your profile display name.",
 
   // VrchatGuide
   vrchatGuideTitle: "Watch screen shares in VRChat",
