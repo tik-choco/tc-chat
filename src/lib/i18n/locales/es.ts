@@ -281,6 +281,13 @@ export const es: Messages = {
     noOtherPeers: "No hay nadie más aquí",
     viewPeerProfile: "Ver el perfil de {name}",
 
+    // RoomNamePanel
+    roomNicknameEdit: "Cambiar tu nombre en esta sala",
+    roomNicknameTitle: "Tu nombre en esta sala",
+    roomNicknamePlaceholder: "{name} (nombre del perfil)",
+    roomNicknameHint:
+      "Este nombre se usa en los mensajes y publicaciones que envíes en esta sala y se comparte con sus miembros. Déjalo vacío para usar el nombre de tu perfil.",
+
     // VrchatGuide — sentence fragments keep the surrounding <strong>/<code>
     // markup; spaces at the fragment edges are part of the rendered text.
     vrchatGuideTitle: "Ver pantallas compartidas en VRChat",

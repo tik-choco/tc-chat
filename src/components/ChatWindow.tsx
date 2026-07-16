@@ -3,7 +3,7 @@ import type { ChatMessage, ChatDisplay } from "../lib/chatStore";
 import type { ProfileDirectory } from "../lib/profileDirectory";
 import type { Peer } from "../hooks/usePresence";
 import type { TcStorageFileEntry } from "../interop/tcStorageFiles";
-import { Hash, Globe, User, AlertTriangle } from "lucide-preact";
+import { Hash, Globe, User, AlertTriangle, Pencil } from "lucide-preact";
 import { MessageBubble, groupPosAt } from "./MessageBubble";
 import { MessageInput } from "./MessageInput";
 import { VoicePanel } from "./VoicePanel";
@@ -43,6 +43,8 @@ export function ChatWindow(props: {
   onDeleteMessage: (targetId: string) => void;
   /** Open a participant's read-only profile card (by DID + a fallback name). */
   onOpenProfile: (did: string, fallbackName: string) => void;
+  /** Open the per-room display-name override editor for the current room. */
+  onEditSelfRoomName: () => void;
   voice: ReturnType<typeof useVoiceChat>;
   screenShare: ReturnType<typeof useScreenShare>;
   videoCall: ReturnType<typeof useVideoCall>;
@@ -67,6 +69,7 @@ export function ChatWindow(props: {
     onEditMessage,
     onDeleteMessage,
     onOpenProfile,
+    onEditSelfRoomName,
     voice,
     screenShare,
     videoCall,
@@ -150,6 +153,16 @@ export function ChatWindow(props: {
           )}
         </div>
         <div class="topbar-actions">
+          <button
+            type="button"
+            class="pill-btn pill-btn--ghost room-nickname-btn"
+            title={t("account.roomNicknameEdit")}
+            aria-label={t("account.roomNicknameEdit")}
+            onClick={onEditSelfRoomName}
+          >
+            <Pencil size={14} />
+            <span class="btn-label room-nickname-btn-label">{selfName}</span>
+          </button>
           {roomId !== GLOBAL_ROOM_ID && (
             <>
               <VoicePanel

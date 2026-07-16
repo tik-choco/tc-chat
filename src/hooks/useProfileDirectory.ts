@@ -4,7 +4,13 @@
 // broadcasts keyed by DID; a peer can't forge another's profile because the
 // signature is verified against the claimed DID (see wireSign). Late joiners
 // are handled by re-announcing to each peer as they connect.
-import { useEffect, useRef, useState } from "preact/hooks";
+//
+// The directory is room-scoped (see profileDirectory.ts): each room gets its
+// own slice, so a peer's nickname in one room never leaks into another room's
+// view of them. `localDisplayName` is the EFFECTIVE name for the active room
+// (the caller has already resolved any per-room override) — this hook just
+// broadcasts and self-merges it.
+import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import {
   getNode,
   subscribeEvent,
@@ -14,7 +20,13 @@ import {
   DELIVERY_RELIABLE,
 } from "../lib/mistClient";
 import { signWireFields, verifyWire } from "../lib/wireSign";
-import { loadDirectory, mergeProfile, type ProfileDirectory } from "../lib/profileDirectory";
+import {
+  loadDirectoryStore,
+  mergeProfile,
+  roomDirectory,
+  type DirectoryStore,
+  type ProfileDirectory,
+} from "../lib/profileDirectory";
 import type { Profile } from "../lib/profileStore";
 
 interface ProfileWire extends Record<string, unknown> {
@@ -29,6 +41,7 @@ interface ProfileWire extends Record<string, unknown> {
 
 async function broadcastProfile(
   profile: Profile,
+  displayName: string,
   target: string | null,
   channelId: string,
 ): Promise<void> {
@@ -36,7 +49,7 @@ async function broadcastProfile(
   const unsigned = {
     type: "tc-chat:profile" as const,
     fromId: profile.did,
-    displayName: profile.displayName,
+    displayName: displayName || profile.displayName,
     avatarCid: profile.avatar || "",
     bio: profile.bio || "",
     updatedAt: Date.now(),
@@ -45,23 +58,32 @@ async function broadcastProfile(
   node.sendMessage(target, wire, DELIVERY_RELIABLE, channelId);
 }
 
-export function useProfileDirectory(roomId: string | null, localProfile: Profile | null) {
-  const [directory, setDirectory] = useState<ProfileDirectory>(() => loadDirectory());
+export function useProfileDirectory(
+  roomId: string | null,
+  localProfile: Profile | null,
+  localDisplayName: string,
+): {
+  directory: ProfileDirectory;
+  directoryFor: (roomId: string) => ProfileDirectory;
+} {
+  const [store, setStore] = useState<DirectoryStore>(() => loadDirectoryStore());
   const profileRef = useRef(localProfile);
   profileRef.current = localProfile;
+  const nameRef = useRef(localDisplayName);
+  nameRef.current = localDisplayName;
 
   // Keep our own profile in the directory immediately so our own messages and
   // posts resolve to our name/avatar without waiting for a network round trip.
   useEffect(() => {
-    if (!localProfile?.did) return;
-    setDirectory((d) =>
-      mergeProfile(d, localProfile.did, {
-        displayName: localProfile.displayName,
+    if (!roomId || !localProfile?.did) return;
+    setStore((s) =>
+      mergeProfile(s, roomId, localProfile.did, {
+        displayName: localDisplayName,
         avatarCid: localProfile.avatar || undefined,
         updatedAt: Date.now(),
       }),
     );
-  }, [localProfile?.did, localProfile?.displayName, localProfile?.avatar]);
+  }, [roomId, localProfile?.did, localProfile?.avatar, localDisplayName]);
 
   // Collect peers' profiles, and greet any peer that connects.
   useEffect(() => {
@@ -74,8 +96,8 @@ export function useProfileDirectory(roomId: string | null, localProfile: Profile
     async function handleProfile(wire: ProfileWire) {
       if (!(await verifyWire(wire))) return;
       if (cancelled) return;
-      setDirectory((d) =>
-        mergeProfile(d, wire.fromId, {
+      setStore((s) =>
+        mergeProfile(s, channelId, wire.fromId, {
           displayName: wire.displayName,
           avatarCid: wire.avatarCid || undefined,
           bio: wire.bio || undefined,
@@ -87,7 +109,7 @@ export function useProfileDirectory(roomId: string | null, localProfile: Profile
     const unsubscribe = subscribeEvent((eventType, fromId, payload, evtRoomId) => {
       if (eventType === EVENT_PEER_CONNECTED) {
         const p = profileRef.current;
-        if (p?.did) broadcastProfile(p, fromId, channelId).catch(() => {});
+        if (p?.did) broadcastProfile(p, nameRef.current, fromId, channelId).catch(() => {});
         return;
       }
       if (!isRawEvent(eventType)) return;
@@ -109,10 +131,12 @@ export function useProfileDirectory(roomId: string | null, localProfile: Profile
     const channelId = roomId;
     const timer = setTimeout(() => {
       const p = profileRef.current;
-      if (p?.did) broadcastProfile(p, null, channelId).catch(() => {});
+      if (p?.did) broadcastProfile(p, nameRef.current, null, channelId).catch(() => {});
     }, 400);
     return () => clearTimeout(timer);
-  }, [roomId, localProfile?.did, localProfile?.displayName, localProfile?.avatar]);
+  }, [roomId, localProfile?.did, localProfile?.avatar, localDisplayName]);
 
-  return { directory };
+  const directoryFor = useCallback((id: string) => roomDirectory(store, id), [store]);
+
+  return { directory: roomDirectory(store, roomId), directoryFor };
 }

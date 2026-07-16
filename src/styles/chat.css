@@ -70,6 +70,15 @@
   justify-content: flex-end;
 }
 
+/* Shows the room-scoped nickname it edits, so the pencil icon reads as "this
+   is your name here, click to change it" rather than an unlabeled mystery
+   action next to the room's own title. */
+.room-nickname-btn-label {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Legacy header kept for any remaining consumers. */
 .chat-header {
   display: flex;
