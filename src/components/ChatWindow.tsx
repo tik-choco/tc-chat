@@ -134,6 +134,7 @@ export function ChatWindow(props: {
           key: m.id,
           kind: m.mimeType?.startsWith("video/") ? "video" : "image",
           cid: m.cid,
+          enc: m.enc,
           fileName: m.fileName,
           size: m.fileSize,
         })),

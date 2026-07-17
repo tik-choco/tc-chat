@@ -22,6 +22,11 @@ const ja = {
   you: "あなた",
   edited: "(編集済み)",
   irreversible: "この操作は取り消せません。",
+  retry: "再試行",
+  // Shown when a post's body/media couldn't be fetched from the swarm at all
+  // (e.g. the author is offline and nobody else is relaying it) — distinct
+  // from a still-in-flight loading state.
+  mediaUnavailable: "コンテンツを利用できません（投稿者がオフラインの可能性があります）",
 };
 
 const en: typeof ja = {
@@ -41,6 +46,8 @@ const en: typeof ja = {
   you: "You",
   edited: "(edited)",
   irreversible: "This action cannot be undone.",
+  retry: "Retry",
+  mediaUnavailable: "Content unavailable (poster may be offline)",
 };
 
 export const common = { ja, en };

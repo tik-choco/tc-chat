@@ -20,6 +20,8 @@ export const fr: Messages = {
     you: "Toi",
     edited: "(modifié)",
     irreversible: "Cette action est irréversible.",
+    retry: "Réessayer",
+    mediaUnavailable: "Contenu indisponible (l'auteur est peut-être hors ligne)",
   },
 
   settings: {

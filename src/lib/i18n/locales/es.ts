@@ -20,6 +20,8 @@ export const es: Messages = {
     you: "Tú",
     edited: "(editado)",
     irreversible: "Esta acción no se puede deshacer.",
+    retry: "Reintentar",
+    mediaUnavailable: "Contenido no disponible (puede que quien lo publicó esté desconectado)",
   },
 
   settings: {

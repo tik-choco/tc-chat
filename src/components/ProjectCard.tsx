@@ -3,6 +3,7 @@ import type { ComponentChildren } from "preact";
 import type { NodeTree } from "../lib/boardTree";
 import { useT } from "../lib/i18n";
 import { resolveStorageUrl } from "../lib/mediaUrl";
+import type { PostEnc } from "../crypto/postCipher";
 
 /** "参加希望" reaction — the same reaction stream as every other emoji
  * (ReactionBar's ❤️ quick-pick included), just surfaced as a first-class
@@ -30,12 +31,13 @@ function Chips(props: { roles?: string[]; tags?: string[] }) {
  */
 function CardCover(props: {
   cid?: string;
-  mimeType?: string;
+  /** The post's content-key envelope; the cover thumb shares the post key. */
+  enc?: PostEnc;
   alt: string;
   /** Overlaid on the cover's top-left corner (the kind badge). */
   children?: ComponentChildren;
 }) {
-  const { cid, mimeType, alt, children } = props;
+  const { cid, enc, alt, children } = props;
   const [url, setUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -45,7 +47,7 @@ function CardCover(props: {
     }
     let cancelled = false;
     setUrl(null);
-    resolveStorageUrl(cid, mimeType)
+    resolveStorageUrl(cid, enc)
       .then((u) => {
         if (!cancelled) setUrl(u);
       })
@@ -55,7 +57,7 @@ function CardCover(props: {
     return () => {
       cancelled = true;
     };
-  }, [cid, mimeType]);
+  }, [cid, enc]);
 
   return (
     <div class={`project-card-cover ${url ? "" : "project-card-cover--empty"}`}>
@@ -113,7 +115,7 @@ export function ProjectCard(props: {
 
   return (
     <article class="project-card" onClick={() => onOpen(node.id)}>
-      <CardCover cid={node.thumbCid} mimeType={node.thumbMimeType} alt={node.title ?? ""}>
+      <CardCover cid={node.thumbCid} enc={node.enc} alt={node.title ?? ""}>
         <span class={`project-card-badge ${isProject ? "" : "project-card-badge--topic"}`}>
           {isProject ? t("board.recruit") : t("board.topic")}
         </span>

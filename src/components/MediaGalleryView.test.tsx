@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, fireEvent, cleanup, waitFor } from "@testing-library/preact";
 import { MediaGalleryView } from "./MediaGalleryView";
 import type { PostNode } from "../lib/chatStore";
@@ -7,7 +7,18 @@ import type { PostNode } from "../lib/chatStore";
 // (same module the Lightbox itself uses), so this mock covers both.
 vi.mock("../lib/mediaUrl", () => ({
   resolveStorageUrl: vi.fn(async (cid: string) => `blob:${cid}`),
+  invalidateStorageUrl: vi.fn(),
 }));
+
+import { resolveStorageUrl, invalidateStorageUrl } from "../lib/mediaUrl";
+const resolveStorageUrlMock = vi.mocked(resolveStorageUrl);
+const invalidateStorageUrlMock = vi.mocked(invalidateStorageUrl);
+
+beforeEach(() => {
+  resolveStorageUrlMock.mockReset();
+  resolveStorageUrlMock.mockImplementation(async (cid: string) => `blob:${cid}`);
+  invalidateStorageUrlMock.mockReset();
+});
 
 afterEach(() => {
   cleanup();
@@ -206,5 +217,47 @@ describe("MediaGalleryView", () => {
     // event for a file input. Dispatch the real "change" event directly.
     input.dispatchEvent(new Event("change", { bubbles: true }));
     expect(onAddFiles).toHaveBeenCalledWith([file]);
+  });
+
+  describe("encrypted media resolve / failure / retry", () => {
+    it("passes the post's enc envelope through to resolveStorageUrl for decryption", async () => {
+      const enc = { v: 1 as const, alg: "A256GCM" as const, key: "k" };
+      const item = makeItem({ id: "img", cid: "cid-enc", enc });
+      render(<MediaGalleryView {...baseProps} items={[item]} />);
+      await waitFor(() => expect(resolveStorageUrlMock).toHaveBeenCalledWith("cid-enc", enc));
+    });
+
+    it("shows a distinct unavailable state (not the loading placeholder) when the fetch fails", async () => {
+      resolveStorageUrlMock.mockRejectedValueOnce(new Error("author offline"));
+      const item = makeItem({ id: "img" });
+      const { container, getByText } = render(<MediaGalleryView {...baseProps} items={[item]} />);
+      await waitFor(() =>
+        expect(getByText("コンテンツを利用できません（投稿者がオフラインの可能性があります）")).toBeTruthy(),
+      );
+      expect(container.querySelector("img.gallery-tile-thumb")).toBeNull();
+      expect(container.querySelector(".gallery-tile-placeholder--error")).toBeTruthy();
+    });
+
+    it("clicking a failed tile retries instead of opening the Lightbox", async () => {
+      resolveStorageUrlMock.mockRejectedValueOnce(new Error("author offline"));
+      const item = makeItem({ id: "img" });
+      const { container, queryByRole, getByText } = render(
+        <MediaGalleryView {...baseProps} items={[item]} />,
+      );
+      await waitFor(() => getByText("コンテンツを利用できません（投稿者がオフラインの可能性があります）"));
+
+      const tileBtn = container.querySelector(".gallery-tile-media") as HTMLButtonElement;
+      fireEvent.click(tileBtn);
+
+      expect(invalidateStorageUrlMock).toHaveBeenCalledWith("cid-1");
+      expect(queryByRole("dialog")).toBeNull(); // did not open the Lightbox
+
+      const img = await waitFor(() => {
+        const el = container.querySelector<HTMLImageElement>("img.gallery-tile-thumb");
+        if (!el) throw new Error("not resolved yet");
+        return el;
+      });
+      expect(img.getAttribute("src")).toBe("blob:cid-1");
+    });
   });
 });

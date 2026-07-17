@@ -12,6 +12,10 @@ import {
   storage_get,
   storage_kv_set,
   storage_kv_get,
+  storage_pin,
+  storage_unpin,
+  storage_is_pinned,
+  storage_add_pinned,
   type MediaEventPayload,
 } from "../vendor/mistlib/wrappers/web/index.js";
 
@@ -24,7 +28,17 @@ export {
   DELIVERY_RELIABLE,
   DELIVERY_UNRELIABLE,
 } from "../vendor/mistlib/wrappers/web/index.js";
-export { EVENT_RAW, storage_add, storage_get, storage_kv_set, storage_kv_get };
+export {
+  EVENT_RAW,
+  storage_add,
+  storage_get,
+  storage_kv_set,
+  storage_kv_get,
+  storage_pin,
+  storage_unpin,
+  storage_is_pinned,
+  storage_add_pinned,
+};
 export type { MediaEventPayload };
 
 import type { SharedStorageBackend } from "../crypto/didIdentity";

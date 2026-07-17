@@ -6,6 +6,7 @@ import { useT } from "../lib/i18n";
 import { formatTime, shortDid } from "../lib/util";
 import { identityFor, type ProfileDirectory } from "../lib/profileDirectory";
 import { resolveStorageUrl } from "../lib/mediaUrl";
+import type { PostEnc } from "../crypto/postCipher";
 import { makeThumbnail, type ThumbResult } from "../lib/imageThumb";
 import { Avatar } from "./Avatar";
 import { ReactionBar } from "./ReactionBar";
@@ -27,15 +28,16 @@ function Chips(props: { items?: string[]; variant: string }) {
 
 /** Resolves a thumbCid to a blob URL and renders it, mirroring MessageBubble's
  * MediaContent — a failed/slow resolve just renders nothing (no placeholder),
- * since a thumbnail is decoration, not the post's content. */
-function NodeThumbImage(props: { cid: string; mimeType?: string; alt: string; class: string }) {
-  const { cid, mimeType, alt, class: className } = props;
+ * since a thumbnail is decoration, not the post's content. `enc` decrypts the
+ * thumbnail when the owning post's body is encrypted (same key as the cid). */
+function NodeThumbImage(props: { cid: string; enc?: PostEnc; alt: string; class: string }) {
+  const { cid, enc, alt, class: className } = props;
   const [url, setUrl] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setUrl(null);
-    resolveStorageUrl(cid, mimeType)
+    resolveStorageUrl(cid, enc)
       .then((u) => {
         if (!cancelled) setUrl(u);
       })
@@ -45,7 +47,7 @@ function NodeThumbImage(props: { cid: string; mimeType?: string; alt: string; cl
     return () => {
       cancelled = true;
     };
-  }, [cid, mimeType]);
+  }, [cid, enc]);
 
   if (!url) return null;
   return <img class={className} src={url} alt={alt} />;
@@ -231,7 +233,7 @@ export function BoardNodeView(props: {
                   ) : editThumb === undefined && node.thumbCid ? (
                     <NodeThumbImage
                       cid={node.thumbCid}
-                      mimeType={node.thumbMimeType}
+                      enc={node.enc}
                       alt={t("board.thumbAlt")}
                       class="board-node-edit-thumb-preview"
                     />
@@ -300,7 +302,7 @@ export function BoardNodeView(props: {
                 >
                   <NodeThumbImage
                     cid={node.thumbCid}
-                    mimeType={node.thumbMimeType}
+                    enc={node.enc}
                     alt={t("board.thumbAlt")}
                     class="board-node-thumb"
                   />
@@ -432,6 +434,7 @@ export function BoardNodeView(props: {
                   key: node.id,
                   kind: "image",
                   cid: node.thumbCid,
+                  enc: node.enc,
                   fileName: node.title,
                 } satisfies LightboxItem,
               ]}

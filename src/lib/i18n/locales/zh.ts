@@ -19,6 +19,8 @@ export const zh: Messages = {
     you: "你",
     edited: "（已编辑）",
     irreversible: "此操作无法撤销。",
+    retry: "重试",
+    mediaUnavailable: "内容不可用（发布者可能已离线）",
   },
 
   settings: {

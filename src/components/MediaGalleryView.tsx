@@ -4,7 +4,7 @@ import { Images, Upload, Archive, Trash2, Play } from "lucide-preact";
 import type { PostNode, Reaction } from "../lib/chatStore";
 import { identityFor, type ProfileDirectory } from "../lib/profileDirectory";
 import { loadTcStorageFiles, type TcStorageFileEntry } from "../interop/tcStorageFiles";
-import { resolveStorageUrl } from "../lib/mediaUrl";
+import { resolveStorageUrl, invalidateStorageUrl } from "../lib/mediaUrl";
 import { formatTime } from "../lib/util";
 import { useT } from "../lib/i18n";
 import { Avatar } from "./Avatar";
@@ -45,19 +45,31 @@ function GalleryTile(props: {
   const { item, isOwn, localId, directory, onOpen, onToggleReaction, onDelete } = props;
   const t = useT();
   const [url, setUrl] = useState<string | null>(null);
+  const [error, setError] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    resolveStorageUrl(item.cid, item.mimeType)
+    setUrl(null);
+    setError(false);
+    resolveStorageUrl(item.cid, item.enc)
       .then((u) => !cancelled && setUrl(u))
-      .catch(() => {
-        // Leave the placeholder up; the tile just never resolves.
-      });
+      .catch(() => !cancelled && setError(true));
     return () => {
       cancelled = true;
     };
-  }, [item.cid, item.mimeType]);
+  }, [item.cid, item.enc]);
+
+  // Retry: drop the (failed) cache entry and resolve again — the poster may
+  // be back online, or a relay may now have the content.
+  function retry() {
+    invalidateStorageUrl(item.cid);
+    setError(false);
+    setUrl(null);
+    resolveStorageUrl(item.cid, item.enc)
+      .then(setUrl)
+      .catch(() => setError(true));
+  }
 
   const { name, avatarCid } = identityFor(directory, item.fromId, item.fromName);
   const isVideo = item.mimeType?.startsWith("video/");
@@ -69,9 +81,12 @@ function GalleryTile(props: {
       <button
         type="button"
         class="gallery-tile-media"
-        onClick={onOpen}
-        aria-label={t("chat.viewFullscreen", { name: alt })}
-        title={t("chat.fullscreen")}
+        // The whole tile is a single <button> (no nested interactive
+        // controls allowed inside it), so while the fetch has failed a
+        // click retries instead of opening the Lightbox on nothing.
+        onClick={error ? retry : onOpen}
+        aria-label={error ? t("common.retry") : t("chat.viewFullscreen", { name: alt })}
+        title={error ? t("common.retry") : t("chat.fullscreen")}
       >
         {url ? (
           isVideo ? (
@@ -79,6 +94,10 @@ function GalleryTile(props: {
           ) : (
             <img class="gallery-tile-thumb" src={url} alt={alt} />
           )
+        ) : error ? (
+          <span class="gallery-tile-placeholder gallery-tile-placeholder--error">
+            {t("common.mediaUnavailable")}
+          </span>
         ) : (
           <span class="gallery-tile-placeholder">{t("common.loading")}</span>
         )}
@@ -183,6 +202,7 @@ export function MediaGalleryView(props: {
           key: m.id,
           kind: m.mimeType?.startsWith("video/") ? "video" : "image",
           cid: m.cid,
+          enc: m.enc,
           fileName: m.fileName,
           size: m.fileSize,
           fromId: m.fromId,
