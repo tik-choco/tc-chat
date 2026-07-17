@@ -4,6 +4,7 @@
 // per-room message index in localStorage, keyed by room id.
 
 import { ROOM_TABS, type AppLocation, type RoomTab } from "./util";
+import type { PostEnc } from "../crypto/postCipher";
 
 export interface RoomMeta {
   id: string;
@@ -68,6 +69,8 @@ export interface PostNode {
   thumbMimeType?: string;
   /** Recruitment capacity (project kind): how many members the post is looking for. */
   capacity?: number;
+  /** Content-key envelope for encrypted bodies (see postCipher). Absent = legacy plaintext CID. */
+  enc?: PostEnc;
   /** Tombstoned by its author (applyPostDelete): body cleared, position kept. */
   deleted?: boolean;
   /** Set when the author last edited the body (applyPostEdit). */
@@ -103,11 +106,22 @@ const PENDING_DELETES_KEY_PREFIX = "tc-chat:pending-deletes:";
 // so any peer can replay verifiable history to a late joiner. Only signatures
 // make replay safe — a replayer can't forge content, and each wire is
 // re-verified on receipt (see useHistorySync).
-const WIRE_LOG_KEY_PREFIX = "tc-chat:wirelog:";
+//
+// Wires are bucketed per surface (post/edit/delete wires carry a `surface`
+// field; reactions and anything surface-less land in "misc") so a busy chat
+// stream can no longer evict board/calendar/gallery history out of one shared
+// replay window. Rooms with a legacy single-key log are migrated into buckets
+// on first touch; the legacy key is only removed once every bucket write
+// confirmed (a failed migration just retries next time — the
+// personalCalendarStore.migrateLegacy pattern).
+const LEGACY_WIRE_LOG_KEY_PREFIX = "tc-chat:wirelog:";
+const WIRE_LOG_BUCKET_KEY_PREFIX = "tc-chat:wirelog2:";
+const WIRE_LOG_BUCKETS = [...ROOM_TABS, "misc"] as const;
+type WireLogBucket = (typeof WIRE_LOG_BUCKETS)[number];
 const ROOMS_KEY = "tc-chat:rooms";
 const USERNAME_KEY = "tc-chat:username";
 const MAX_POSTS_PER_ROOM = 500;
-const MAX_WIRE_LOG_PER_ROOM = 600;
+const MAX_WIRE_LOG_PER_BUCKET = 600;
 
 type ReactionIndex = Record<string, Reaction[]>;
 
@@ -174,6 +188,7 @@ function tombstone(target: PostNode): void {
   target.thumbCid = undefined;
   target.thumbMimeType = undefined;
   target.capacity = undefined;
+  target.enc = undefined;
   target.editedAt = undefined;
 }
 
@@ -293,6 +308,8 @@ export function applyPostEdit(
   authorId: string,
   patch: {
     cid: string;
+    /** Content-key envelope for the re-encrypted body at `cid` (see postCipher). Absent = legacy plaintext CID. */
+    enc?: PostEnc;
     text?: string;
     title?: string;
     editedAt: number;
@@ -309,6 +326,7 @@ export function applyPostEdit(
   if (!target || target.fromId !== authorId || target.deleted) return;
   if (target.kind !== "text" && target.kind !== "project" && target.kind !== "event") return;
   target.cid = patch.cid;
+  target.enc = patch.enc;
   target.text = patch.text;
   target.title = patch.title;
   target.editedAt = patch.editedAt;
@@ -362,27 +380,89 @@ export function applyPostDelete(
 
 export type SignedWire = Record<string, unknown> & { id?: string };
 
-export function loadWireLog(roomId: string): SignedWire[] {
+function wireBucket(wire: SignedWire): WireLogBucket {
+  const surface = wire.surface;
+  return typeof surface === "string" && (ROOM_TABS as readonly string[]).includes(surface)
+    ? (surface as WireLogBucket)
+    : "misc";
+}
+
+function wireLogBucketKey(bucket: WireLogBucket, roomId: string): string {
+  return WIRE_LOG_BUCKET_KEY_PREFIX + bucket + ":" + roomId;
+}
+
+function loadWireLogBucket(bucket: WireLogBucket, roomId: string): SignedWire[] {
   try {
-    const raw = localStorage.getItem(WIRE_LOG_KEY_PREFIX + roomId);
+    const raw = localStorage.getItem(wireLogBucketKey(bucket, roomId));
     return raw ? (JSON.parse(raw) as SignedWire[]) : [];
   } catch {
     return [];
   }
 }
 
-/** Records a signed wire for later replay, deduped by wire id, newest kept. */
-export function appendWireLog(roomId: string, wire: SignedWire): void {
-  const log = loadWireLog(roomId);
-  if (typeof wire.id === "string" && log.some((w) => w.id === wire.id)) return;
-  const next = [...log, wire];
+/** Trims to the bucket cap and persists; returns whether the write stuck. */
+function saveWireLogBucket(bucket: WireLogBucket, roomId: string, log: SignedWire[]): boolean {
   const trimmed =
-    next.length > MAX_WIRE_LOG_PER_ROOM ? next.slice(next.length - MAX_WIRE_LOG_PER_ROOM) : next;
+    log.length > MAX_WIRE_LOG_PER_BUCKET ? log.slice(log.length - MAX_WIRE_LOG_PER_BUCKET) : log;
   try {
-    localStorage.setItem(WIRE_LOG_KEY_PREFIX + roomId, JSON.stringify(trimmed));
+    localStorage.setItem(wireLogBucketKey(bucket, roomId), JSON.stringify(trimmed));
+    return true;
   } catch (error) {
     console.warn(`tc-chat: failed to persist wire log for room "${roomId}"`, error);
+    return false;
   }
+}
+
+/** Appends only wires whose (string) id isn't already present, keeping order. */
+function mergeWires(base: SignedWire[], extra: SignedWire[]): SignedWire[] {
+  const seen = new Set(base.map((w) => w.id).filter((id) => typeof id === "string"));
+  const fresh = extra.filter((w) => !(typeof w.id === "string" && seen.has(w.id)));
+  return fresh.length === 0 ? base : [...base, ...fresh];
+}
+
+function migrateLegacyWireLog(roomId: string): void {
+  let legacy: SignedWire[] = [];
+  try {
+    const raw = localStorage.getItem(LEGACY_WIRE_LOG_KEY_PREFIX + roomId);
+    if (!raw) return;
+    legacy = JSON.parse(raw) as SignedWire[];
+  } catch {
+    // Unreadable legacy log: nothing to carry over, just clear it below.
+  }
+  let allSaved = true;
+  for (const bucket of WIRE_LOG_BUCKETS) {
+    const forBucket = legacy.filter((w) => wireBucket(w) === bucket);
+    if (forBucket.length === 0) continue;
+    // Legacy wires predate anything already bucketed, so they go first.
+    const merged = mergeWires(forBucket, loadWireLogBucket(bucket, roomId));
+    if (!saveWireLogBucket(bucket, roomId, merged)) allSaved = false;
+  }
+  if (allSaved) {
+    try {
+      localStorage.removeItem(LEGACY_WIRE_LOG_KEY_PREFIX + roomId);
+    } catch {
+      // Retried on the next load/append.
+    }
+  }
+}
+
+/** A room's full replayable wire history, merged across buckets in timestamp order. */
+export function loadWireLog(roomId: string): SignedWire[] {
+  migrateLegacyWireLog(roomId);
+  const merged: SignedWire[] = [];
+  for (const bucket of WIRE_LOG_BUCKETS) merged.push(...loadWireLogBucket(bucket, roomId));
+  return merged.sort(
+    (a, b) => (typeof a.timestamp === "number" ? a.timestamp : 0) - (typeof b.timestamp === "number" ? b.timestamp : 0),
+  );
+}
+
+/** Records a signed wire for later replay, deduped by wire id, newest kept. */
+export function appendWireLog(roomId: string, wire: SignedWire): void {
+  migrateLegacyWireLog(roomId);
+  const bucket = wireBucket(wire);
+  const log = loadWireLogBucket(bucket, roomId);
+  if (typeof wire.id === "string" && log.some((w) => w.id === wire.id)) return;
+  saveWireLogBucket(bucket, roomId, [...log, wire]);
 }
 
 export function loadRooms(): RoomMeta[] {

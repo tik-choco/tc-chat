@@ -36,6 +36,19 @@ import { signWireFields, verifyWire } from "../lib/wireSign";
 import type { TcStorageFileEntry } from "../interop/tcStorageFiles";
 import { resolveTcStorageFileContent } from "../interop/tcStorageContent";
 import { newId } from "../lib/util";
+import {
+  generatePostEnc,
+  encryptPostBytes,
+  decryptPostBytes,
+  isPostEnc,
+  type PostEnc,
+} from "../crypto/postCipher";
+import { shouldRelayRoom, AUTO_FETCH_MAX_BYTES, noteBody, releasePost, sweepRoom } from "../lib/relayCache";
+
+// Generic storage name for every encrypted blob (post body JSON, thumbnails,
+// media/file bytes) so no filename/type leaks into the plaintext manifest
+// mistlib keeps alongside the block.
+const ENC_STORAGE_NAME = "enc.bin";
 
 interface PostWire extends Record<string, unknown> {
   type: "tc-chat:post";
@@ -47,6 +60,8 @@ interface PostWire extends Record<string, unknown> {
   timestamp: number;
   kind: PostKind;
   cid: string;
+  /** Content-key envelope for the encrypted body/thumbnail at `cid` (see postCipher). Absent = legacy plaintext CID. */
+  enc?: PostEnc;
   mimeType?: string;
   fileName?: string;
   fileSize?: number;
@@ -76,6 +91,8 @@ interface PostEditWire extends Record<string, unknown> {
   targetId: string;
   /** The edited JSON body, re-stored via storage_add (structured kinds only). */
   cid: string;
+  /** Content-key envelope for the encrypted body at `cid` (see postCipher). Absent = legacy plaintext CID. */
+  enc?: PostEnc;
   fromId: string;
   fromName: string;
   timestamp: number;
@@ -138,6 +155,9 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
       return;
     }
     setNodes(loadPosts(surface, roomId));
+    // Reconciles this room's relay pin index against posts still present
+    // locally; cheap, fire-and-forget, safe to call once per surface mount.
+    void sweepRoom(roomId);
 
     let cancelled = false;
     // Only accept wires that arrived on THIS room's swarm topic. The node may be
@@ -155,13 +175,43 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
         }
         appendWireLog(roomId!, wire);
         const identity = await ensureDidIdentity();
+        // wire.enc is untrusted input off the wire — validate its shape
+        // before ever handing it to the cipher. A malformed enc is treated
+        // like any other body-fetch failure below (fail soft, no node).
+        let enc: PostEnc | undefined;
+        if (wire.enc !== undefined) {
+          if (!isPostEnc(wire.enc)) {
+            console.warn("discarding post with malformed enc", wire.id);
+            return;
+          }
+          enc = wire.enc;
+        }
         // Only structured kinds carry a JSON body worth fetching up front;
         // media/file resolve their CID lazily when rendered.
         let body: PostBody = {};
         if (structuredKind(wire.kind)) {
-          const bytes = await storage_get(wire.cid);
+          const raw = await storage_get(wire.cid);
           if (cancelled) return;
-          body = JSON.parse(new TextDecoder().decode(bytes)) as PostBody;
+          // Legacy wires (no enc) are still plaintext CIDs; new wires carry
+          // an encrypted blob keyed by the wire's enc envelope.
+          const plain = enc ? await decryptPostBytes(enc, raw) : raw;
+          body = JSON.parse(new TextDecoder().decode(plain)) as PostBody;
+          if (shouldRelayRoom(roomId!)) {
+            void noteBody(roomId!, wire.id, wire.cid, raw.byteLength);
+          }
+        } else if (shouldRelayRoom(roomId!) && (wire.fileSize ?? 0) <= AUTO_FETCH_MAX_BYTES) {
+          // Media/file kinds: proactively pull the (still-encrypted) bytes
+          // into the local mistlib store so this peer can relay them to
+          // others in the room. Best-effort, never decrypts, never blocks
+          // hydration on the outcome.
+          void (async () => {
+            try {
+              const bytes = await storage_get(wire.cid);
+              await noteBody(roomId!, wire.id, wire.cid, bytes.byteLength);
+            } catch (err) {
+              console.warn("failed to prefetch/pin post body", wire.id, err);
+            }
+          })();
         }
         if (cancelled) return;
         setNodes(
@@ -175,6 +225,7 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
             timestamp: wire.timestamp,
             kind: wire.kind,
             cid: wire.cid,
+            enc,
             title: body.title,
             text: body.text,
             roles: body.roles,
@@ -228,16 +279,29 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
           return;
         }
         appendWireLog(roomId!, wire);
+        let enc: PostEnc | undefined;
+        if (wire.enc !== undefined) {
+          if (!isPostEnc(wire.enc)) {
+            console.warn("discarding post edit with malformed enc", wire.id);
+            return;
+          }
+          enc = wire.enc;
+        }
         // Edits only exist for structured kinds, so the new CID is always a
         // JSON body worth fetching before applying.
-        const bytes = await storage_get(wire.cid);
+        const raw = await storage_get(wire.cid);
         if (cancelled) return;
-        const body = JSON.parse(new TextDecoder().decode(bytes)) as PostBody;
+        const plain = enc ? await decryptPostBytes(enc, raw) : raw;
+        const body = JSON.parse(new TextDecoder().decode(plain)) as PostBody;
+        if (shouldRelayRoom(roomId!)) {
+          void noteBody(roomId!, wire.targetId, wire.cid, raw.byteLength);
+        }
         // applyPostEdit re-checks that wire.fromId matches the stored post's
         // author — a valid signature only proves the sender wrote the wire,
         // not that they own the target.
         applyPostEdit(surface, roomId!, wire.targetId, wire.fromId, {
           cid: wire.cid,
+          enc,
           text: body.text,
           title: body.title,
           editedAt: wire.timestamp,
@@ -262,8 +326,15 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
         }
         appendWireLog(roomId!, wire);
         if (cancelled) return;
+        // Peek whether this delete will actually take effect BEFORE applying
+        // it, so a forged delete from a non-author (rejected by
+        // applyPostDelete's author check) can't trigger releasePost and
+        // strand a legitimate post unpinned.
+        const before = loadPosts(surface, roomId!).find((p) => p.id === wire.targetId);
+        const willRelease = !before || before.fromId === wire.fromId;
         // Same author-only boundary as edits (see applyPostDelete).
         applyPostDelete(surface, roomId!, wire.targetId, wire.fromId);
+        if (willRelease) void releasePost(roomId!, wire.targetId);
         setNodes(loadPosts(surface, roomId!));
       } catch (err) {
         console.error("failed to apply post delete", err);
@@ -310,9 +381,16 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
     // the calendar UI) are mandatory.
     if (!input.text?.trim() && !input.title?.trim()) return;
     const identity = await ensureDidIdentity();
-    const thumbCid = input.thumb
-      ? await storage_add(`${newId()}-thumb`, input.thumb.bytes)
-      : undefined;
+    const id = newId();
+    // One fresh content key per post; the same key safely encrypts both the
+    // body JSON and the thumbnail (each blob carries its own random IV).
+    const enc = generatePostEnc();
+    let thumbCid: string | undefined;
+    if (input.thumb) {
+      const thumbBlob = await encryptPostBytes(enc, input.thumb.bytes);
+      thumbCid = await storage_add(ENC_STORAGE_NAME, thumbBlob);
+      if (shouldRelayRoom(roomId)) void noteBody(roomId, id, thumbCid, thumbBlob.byteLength);
+    }
     const body: PostBody = {
       title: input.title?.trim() || undefined,
       text: input.text?.trim() || undefined,
@@ -326,8 +404,9 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
       capacity:
         Number.isInteger(input.capacity) && input.capacity! > 0 ? input.capacity : undefined,
     };
-    const cid = await storage_add(`${newId()}.json`, new TextEncoder().encode(JSON.stringify(body)));
-    const id = newId();
+    const bodyBlob = await encryptPostBytes(enc, new TextEncoder().encode(JSON.stringify(body)));
+    const cid = await storage_add(ENC_STORAGE_NAME, bodyBlob);
+    if (shouldRelayRoom(roomId)) void noteBody(roomId, id, cid, bodyBlob.byteLength);
     const timestamp = Date.now();
     const unsigned = {
       type: "tc-chat:post" as const,
@@ -339,6 +418,7 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
       timestamp,
       kind: input.kind,
       cid,
+      enc,
     };
     const wire: PostWire = { ...unsigned, signature: await signWireFields(unsigned) };
     await publishPost(wire, {
@@ -351,6 +431,7 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
       timestamp,
       kind: input.kind,
       cid,
+      enc,
       ...body,
     });
   }
@@ -359,9 +440,16 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
   async function createMedia(file: File) {
     if (!roomId) return;
     const identity = await ensureDidIdentity();
-    const cid = await storage_add(file.name, new Uint8Array(await file.arrayBuffer()));
     const id = newId();
+    const enc = generatePostEnc();
+    const plainBytes = new Uint8Array(await file.arrayBuffer());
+    const cipherBytes = await encryptPostBytes(enc, plainBytes);
+    const cid = await storage_add(ENC_STORAGE_NAME, cipherBytes);
+    if (shouldRelayRoom(roomId)) void noteBody(roomId, id, cid, cipherBytes.byteLength);
     const timestamp = Date.now();
+    // mimeType/fileName/fileSize stay visible on the wire as today — only
+    // the body bytes are protected at rest; fileSize is the PLAINTEXT size
+    // so the receive-side auto-fetch cap compares against real content size.
     const meta = { mimeType: file.type, fileName: file.name, fileSize: file.size };
     const unsigned = {
       type: "tc-chat:post" as const,
@@ -373,6 +461,7 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
       timestamp,
       kind: "media" as const,
       cid,
+      enc,
       ...meta,
     };
     const wire: PostWire = { ...unsigned, signature: await signWireFields(unsigned) };
@@ -386,6 +475,7 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
       timestamp,
       kind: "media",
       cid,
+      enc,
       ...meta,
     });
   }
@@ -403,8 +493,11 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
     if (!roomId) return;
     const identity = await ensureDidIdentity();
     const { bytes, mimeType } = await resolveTcStorageFileContent(entry);
-    const cid = await storage_add(entry.name, bytes);
     const id = newId();
+    const enc = generatePostEnc();
+    const cipherBytes = await encryptPostBytes(enc, bytes);
+    const cid = await storage_add(ENC_STORAGE_NAME, cipherBytes);
+    if (shouldRelayRoom(roomId)) void noteBody(roomId, id, cid, cipherBytes.byteLength);
     const timestamp = Date.now();
     const meta = {
       mimeType: mimeType || entry.mimeType,
@@ -421,6 +514,7 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
       timestamp,
       kind: "file" as const,
       cid,
+      enc,
       ...meta,
     };
     const wire: PostWire = { ...unsigned, signature: await signWireFields(unsigned) };
@@ -434,6 +528,7 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
       timestamp,
       kind: "file",
       cid,
+      enc,
       ...meta,
     });
   }
@@ -501,17 +596,41 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
     // A calendar event's description is optional (only title/startsAt are
     // mandatory) — every other structured kind still requires body text.
     if (!input.text?.trim() && !input.title?.trim() && target.kind !== "event") return;
+    // Reuse the post's content key across edits — every blob carries its own
+    // random IV, so key reuse is safe, and a thumbnail carried over unchanged
+    // stays decryptable under the post's one key. Legacy plaintext posts get
+    // a key on their first edit; their carried-over thumbnail is re-encrypted
+    // under it below, so a post never mixes plaintext and encrypted blobs.
+    const legacyTarget = !target.enc;
+    const enc = target.enc ?? generatePostEnc();
     // thumb: undefined keeps the existing thumbnail, null drops it, and an
     // object replaces it with a freshly stored image.
-    const thumbCid =
-      input.thumb === undefined
-        ? target.thumbCid
-        : input.thumb === null
-          ? undefined
-          : await storage_add(`${newId()}-thumb`, input.thumb.bytes);
+    let thumbCid: string | undefined;
+    if (input.thumb === undefined) {
+      thumbCid = target.thumbCid;
+      if (thumbCid && legacyTarget) {
+        try {
+          const plainThumb = await storage_get(thumbCid);
+          const thumbBlob = await encryptPostBytes(enc, plainThumb);
+          thumbCid = await storage_add(ENC_STORAGE_NAME, thumbBlob);
+          if (shouldRelayRoom(roomId)) void noteBody(roomId, targetId, thumbCid, thumbBlob.byteLength);
+        } catch (error) {
+          console.warn("tc-chat: failed to re-encrypt legacy thumbnail on edit; dropping it", error);
+          thumbCid = undefined;
+        }
+      }
+    } else if (input.thumb === null) {
+      thumbCid = undefined;
+    } else {
+      const thumbBlob = await encryptPostBytes(enc, input.thumb.bytes);
+      thumbCid = await storage_add(ENC_STORAGE_NAME, thumbBlob);
+      if (shouldRelayRoom(roomId)) void noteBody(roomId, targetId, thumbCid, thumbBlob.byteLength);
+    }
     const thumbMimeType =
       input.thumb === undefined
-        ? target.thumbMimeType
+        ? thumbCid // dropped alongside the CID if a legacy re-encrypt failed
+          ? target.thumbMimeType
+          : undefined
         : input.thumb === null
           ? undefined
           : input.thumb.mimeType;
@@ -529,7 +648,9 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
       thumbMimeType,
       capacity: input.capacity === undefined ? target.capacity : (input.capacity ?? undefined),
     };
-    const cid = await storage_add(`${newId()}.json`, new TextEncoder().encode(JSON.stringify(body)));
+    const bodyBlob = await encryptPostBytes(enc, new TextEncoder().encode(JSON.stringify(body)));
+    const cid = await storage_add(ENC_STORAGE_NAME, bodyBlob);
+    if (shouldRelayRoom(roomId)) void noteBody(roomId, targetId, cid, bodyBlob.byteLength);
     const timestamp = Date.now();
     const unsigned = {
       type: "tc-chat:post-edit" as const,
@@ -537,6 +658,7 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
       surface,
       targetId,
       cid,
+      enc,
       fromId: identity.did,
       fromName: localNameRef.current,
       timestamp,
@@ -548,6 +670,7 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
     appendWireLog(roomId, wire);
     applyPostEdit(surface, roomId, targetId, identity.did, {
       cid,
+      enc,
       text: body.text,
       title: body.title,
       editedAt: timestamp,
@@ -581,6 +704,7 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
     node.sendMessage(null, wire, DELIVERY_RELIABLE, roomId);
     appendWireLog(roomId, wire);
     applyPostDelete(surface, roomId, targetId, identity.did);
+    void releasePost(roomId, targetId);
     setNodes(loadPosts(surface, roomId));
   }
 

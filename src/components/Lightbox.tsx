@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { createPortal } from "preact/compat";
 import type { JSX } from "preact";
-import { ChevronLeft, ChevronRight, Download, Trash2, X } from "lucide-preact";
+import { ChevronLeft, ChevronRight, Download, RefreshCw, Trash2, X } from "lucide-preact";
 import { formatBytes, formatTime } from "../lib/util";
-import { resolveStorageUrl } from "../lib/mediaUrl";
+import { resolveStorageUrl, invalidateStorageUrl } from "../lib/mediaUrl";
 import { useT } from "../lib/i18n";
 import type { Reaction } from "../lib/chatStore";
+import type { PostEnc } from "../crypto/postCipher";
 import { Avatar } from "./Avatar";
 import { ReactionBar } from "./ReactionBar";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -23,8 +24,11 @@ export interface LightboxItem {
   /** Stable identity — a message id, or a screen track id. */
   key: string;
   kind: "image" | "video";
-  /** Chat media: resolved to a blob URL via resolveStorageUrl(cid). */
+  /** Chat media: resolved to a blob URL via resolveStorageUrl(cid, enc). */
   cid?: string;
+  /** Content-key envelope when this item's cid is encrypted (see postCipher).
+   * Absent = legacy plaintext cid, resolved as-is. */
+  enc?: PostEnc;
   /** A live screen share (bound via ref, no URL). */
   stream?: MediaStream;
   fileName?: string;
@@ -75,6 +79,12 @@ export function Lightbox(props: {
   const [urls, setUrls] = useState<Record<string, string>>({});
   const urlsRef = useRef(urls);
   urlsRef.current = urls;
+  // cid → true once a resolve attempt has failed (author offline, content
+  // unreachable, decrypt failure, ...). Sticky until a manual retry clears
+  // it, so the effect below doesn't auto-retry on every re-render.
+  const [errored, setErrored] = useState<Record<string, boolean>>({});
+  const erroredRef = useRef(errored);
+  erroredRef.current = errored;
 
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -112,20 +122,41 @@ export function Lightbox(props: {
     for (const item of needed) {
       if (!item?.cid) continue;
       const cid = item.cid;
-      if (urlsRef.current[cid]) continue;
-      resolveStorageUrl(cid)
+      // Already resolved, or already failed (waiting on a manual retry) —
+      // don't re-issue the fetch just because this effect re-ran.
+      if (urlsRef.current[cid] || erroredRef.current[cid]) continue;
+      resolveStorageUrl(cid, item.enc)
         .then((url) => {
           if (cancelled) return;
           setUrls((prev) => (prev[cid] ? prev : { ...prev, [cid]: url }));
         })
         .catch(() => {
-          /* leave it unresolved; the item shows a loading placeholder */
+          if (cancelled) return;
+          setErrored((prev) => (prev[cid] ? prev : { ...prev, [cid]: true }));
         });
     }
     return () => {
       cancelled = true;
     };
   }, [items, index, flowEnabled]);
+
+  // Retry: drop the failed cache entry and the sticky error flag, then
+  // resolve again from scratch — the poster may be back online, or a relay
+  // may now have the content.
+  function retryItem(item: LightboxItem) {
+    if (!item.cid) return;
+    const cid = item.cid;
+    invalidateStorageUrl(cid);
+    setErrored((prev) => {
+      if (!(cid in prev)) return prev;
+      const next = { ...prev };
+      delete next[cid];
+      return next;
+    });
+    resolveStorageUrl(cid, item.enc)
+      .then((url) => setUrls((prev) => ({ ...prev, [cid]: url })))
+      .catch(() => setErrored((prev) => ({ ...prev, [cid]: true })));
+  }
 
   // Screen shares carry a live MediaStream, not a URL — bind it to the current
   // single-view <video> the same way RemoteScreenStage does. (Streams only ever
@@ -240,8 +271,23 @@ export function Lightbox(props: {
     else onNext();
   }
 
+  function renderMediaError(item: LightboxItem) {
+    // No dedicated CSS for this new state (out of this change's file scope) —
+    // reuse .lightbox-loading for readable-on-dark text color/size, and lay
+    // the two lines out inline rather than leaving them unstyled.
+    return (
+      <div class="lightbox-error" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
+        <p class="lightbox-loading lightbox-error-text">{t("common.mediaUnavailable")}</p>
+        <button type="button" class="lightbox-btn" onClick={() => retryItem(item)}>
+          <RefreshCw size={16} /> {t("common.retry")}
+        </button>
+      </div>
+    );
+  }
+
   function renderSingleMedia(item: LightboxItem) {
     const alt = item.fileName || (item.kind === "video" ? t("media.video") : t("media.image"));
+    if (item.cid && errored[item.cid]) return renderMediaError(item);
     if (item.kind === "image") {
       const url = item.cid ? urls[item.cid] : undefined;
       return url ? (
@@ -263,6 +309,7 @@ export function Lightbox(props: {
   }
 
   function renderFlowMedia(item: LightboxItem) {
+    if (item.cid && errored[item.cid]) return renderMediaError(item);
     const url = item.cid ? urls[item.cid] : undefined;
     const alt = item.fileName || (item.kind === "video" ? t("media.video") : t("media.image"));
     if (!url) return <p class="lightbox-loading">{t("common.loading")}</p>;

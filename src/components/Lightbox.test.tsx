@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, fireEvent, cleanup, waitFor } from "@testing-library/preact";
 import { Lightbox, type LightboxItem } from "./Lightbox";
 import { formatTime } from "../lib/util";
@@ -6,7 +6,18 @@ import { formatTime } from "../lib/util";
 // The Lightbox resolves each item's cid to a blob URL via resolveStorageUrl.
 vi.mock("../lib/mediaUrl", () => ({
   resolveStorageUrl: vi.fn(async (cid: string) => `blob:${cid}`),
+  invalidateStorageUrl: vi.fn(),
 }));
+
+import { resolveStorageUrl, invalidateStorageUrl } from "../lib/mediaUrl";
+const resolveStorageUrlMock = vi.mocked(resolveStorageUrl);
+const invalidateStorageUrlMock = vi.mocked(invalidateStorageUrl);
+
+beforeEach(() => {
+  resolveStorageUrlMock.mockReset();
+  resolveStorageUrlMock.mockImplementation(async (cid: string) => `blob:${cid}`);
+  invalidateStorageUrlMock.mockReset();
+});
 
 afterEach(cleanup);
 
@@ -273,6 +284,60 @@ describe("Lightbox", () => {
       expect(onClose).not.toHaveBeenCalled();
       expect(onDelete).not.toHaveBeenCalled();
       expect(queryByRole("alertdialog")).toBeNull();
+    });
+  });
+
+  describe("media resolve failure / retry", () => {
+    it("shows a distinct unavailable state (not the loading placeholder) when resolveStorageUrl rejects", async () => {
+      resolveStorageUrlMock.mockRejectedValueOnce(new Error("author offline"));
+      const { getByRole, getByText, queryByText } = render(
+        <Lightbox items={imageItems(1)} index={0} onIndexChange={noop} onClose={noop} />,
+      );
+      const dialog = getByRole("dialog");
+      await waitFor(() => expect(getByText("コンテンツを利用できません（投稿者がオフラインの可能性があります）")).toBeTruthy());
+      expect(queryByText("読み込み中…")).toBeNull();
+      expect(dialog.querySelector("img.lightbox-media")).toBeNull();
+    });
+
+    it("retry re-resolves after invalidating the failed cache entry, and the image then renders", async () => {
+      resolveStorageUrlMock.mockRejectedValueOnce(new Error("author offline"));
+      const { getByText, getByRole } = render(
+        <Lightbox items={imageItems(1)} index={0} onIndexChange={noop} onClose={noop} />,
+      );
+      const retryBtn = await waitFor(() => getByText("再試行").closest("button")!);
+
+      fireEvent.click(retryBtn);
+      expect(invalidateStorageUrlMock).toHaveBeenCalledWith("cid-0");
+
+      const dialog = getByRole("dialog");
+      const img = await waitFor(() => {
+        const el = dialog.querySelector<HTMLImageElement>("img.lightbox-media");
+        if (!el) throw new Error("not resolved yet");
+        return el;
+      });
+      expect(img.getAttribute("src")).toBe("blob:cid-0");
+    });
+
+    it("does not auto-retry a failed item on re-render — only a explicit retry re-issues the fetch", async () => {
+      resolveStorageUrlMock.mockRejectedValueOnce(new Error("author offline"));
+      const { getByText, rerender } = render(
+        <Lightbox items={imageItems(1)} index={0} onIndexChange={noop} onClose={noop} />,
+      );
+      await waitFor(() => expect(getByText("再試行")).toBeTruthy());
+      const callsAfterFailure = resolveStorageUrlMock.mock.calls.length;
+
+      // A prop identity change re-runs the resolve effect (new items array),
+      // but the sticky error flag must suppress a redundant re-fetch.
+      rerender(<Lightbox items={imageItems(1)} index={0} onIndexChange={noop} onClose={noop} />);
+      expect(resolveStorageUrlMock.mock.calls.length).toBe(callsAfterFailure);
+    });
+
+    it("passes the item's enc through to resolveStorageUrl for decryption", async () => {
+      const enc = { v: 1 as const, alg: "A256GCM" as const, key: "k" };
+      const items = imageItems(1);
+      items[0] = { ...items[0], enc };
+      render(<Lightbox items={items} index={0} onIndexChange={noop} onClose={noop} />);
+      await waitFor(() => expect(resolveStorageUrlMock).toHaveBeenCalledWith("cid-0", enc));
     });
   });
 });

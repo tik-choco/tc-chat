@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { Paperclip, BadgeCheck, Pencil, Trash2, Maximize2 } from "lucide-preact";
 import type { ChatMessage } from "../lib/chatStore";
-import { storage_get } from "../lib/mistClient";
+import { resolveStorageUrl, invalidateStorageUrl } from "../lib/mediaUrl";
 import { formatBytes, formatTime, shortDid } from "../lib/util";
 import { identityFor, type ProfileDirectory } from "../lib/profileDirectory";
 import { useT } from "../lib/i18n";
@@ -12,17 +12,6 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { LinkPreviewCard } from "./LinkPreviewCard";
 import { MarkdownView } from "./MarkdownView";
 
-const blobUrlCache = new Map<string, string>();
-
-async function resolveMediaUrl(cid: string): Promise<string> {
-  const cached = blobUrlCache.get(cid);
-  if (cached) return cached;
-  const bytes = await storage_get(cid);
-  const url = URL.createObjectURL(new Blob([bytes.slice().buffer]));
-  blobUrlCache.set(cid, url);
-  return url;
-}
-
 function MediaContent(props: { message: ChatMessage; onMaximize: (messageId: string) => void }) {
   const { message, onMaximize } = props;
   const t = useT();
@@ -31,15 +20,44 @@ function MediaContent(props: { message: ChatMessage; onMaximize: (messageId: str
 
   useEffect(() => {
     let cancelled = false;
-    resolveMediaUrl(message.cid)
+    setUrl(null);
+    setError(false);
+    resolveStorageUrl(message.cid, message.enc)
       .then((u) => !cancelled && setUrl(u))
       .catch(() => !cancelled && setError(true));
     return () => {
       cancelled = true;
     };
-  }, [message.cid]);
+  }, [message.cid, message.enc]);
 
-  if (error) return <p class="media-error">{t("chat.mediaLoadFailed")}</p>;
+  // Retry: drop the (failed) cache entry and resolve again from scratch —
+  // the author may be back online, or a relay may now have the content.
+  function retry() {
+    invalidateStorageUrl(message.cid);
+    setError(false);
+    setUrl(null);
+    resolveStorageUrl(message.cid, message.enc)
+      .then(setUrl)
+      .catch(() => setError(true));
+  }
+
+  if (error) {
+    return (
+      // A <button> so the failure is tappable/clickable to retry (was a
+      // plain <p>) — .media-error only styles text (margin/size/opacity),
+      // so the native button chrome is reset inline rather than adding a
+      // CSS rule (out of this change's file scope).
+      <button
+        type="button"
+        class="media-error"
+        onClick={retry}
+        title={t("common.retry")}
+        style={{ border: "none", background: "transparent", padding: 0, color: "inherit", cursor: "pointer", textAlign: "left" }}
+      >
+        {t("chat.mediaLoadFailed")}
+      </button>
+    );
+  }
   if (!url) return <p class="media-loading">{t("common.loading")}</p>;
 
   const isImage = message.mimeType?.startsWith("image/");

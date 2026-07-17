@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/preact";
 import { usePostStream } from "./usePostStream";
 import { createDidIdentity, signStringWithDidIdentity } from "../crypto/didIdentity";
+import { decryptPostBytes, encryptPostBytes, generatePostEnc, isPostEnc } from "../crypto/postCipher";
 
 type EventListener = (
   eventType: number,
@@ -60,6 +61,26 @@ vi.mock("../lib/mistClient", () => ({
   DELIVERY_RELIABLE: 1,
 }));
 
+// relay-cache policy is another worker's module (currently a no-op stub);
+// mock it here so these tests can both assert usePostStream calls it
+// correctly AND control shouldRelayRoom's answer per test without depending
+// on the stub's real (eventually GLOBAL_ROOM_ID-gated) implementation.
+const relayShouldRelayRoom = vi.fn((_roomId: string) => false);
+const relayNoteBody = vi.fn(
+  async (_roomId: string, _postId: string, _cid: string, _byteLength: number) => {},
+);
+const relayReleasePost = vi.fn(async (_roomId: string, _postId: string) => {});
+const relaySweepRoom = vi.fn(async (_roomId: string) => {});
+
+vi.mock("../lib/relayCache", () => ({
+  shouldRelayRoom: (roomId: string) => relayShouldRelayRoom(roomId),
+  AUTO_FETCH_MAX_BYTES: 8 * 1024 * 1024,
+  noteBody: (roomId: string, postId: string, cid: string, byteLength: number) =>
+    relayNoteBody(roomId, postId, cid, byteLength),
+  releasePost: (roomId: string, postId: string) => relayReleasePost(roomId, postId),
+  sweepRoom: (roomId: string) => relaySweepRoom(roomId),
+}));
+
 function stableStringify(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map((item) => stableStringify(item)).join(",")}]`;
@@ -85,9 +106,13 @@ describe("usePostStream", () => {
     eventListener = null;
     storedBytes = null;
     heldStorageGets.clear();
+    // vi.clearAllMocks() clears call history but NOT a base vi.fn() factory
+    // implementation set at declaration time — reassert the default here so
+    // a mockReturnValue(true) in one test can't leak into the next.
+    relayShouldRelayRoom.mockImplementation(() => false);
   });
 
-  it("createPost (board/project): stores a JSON body, broadcasts a signed post wire with surface", async () => {
+  it("createPost (board/project): encrypts the JSON body before storage_add, broadcasts a signed post wire with surface + enc", async () => {
     const { result } = renderHook(() => usePostStream("room-1", "board", "Alice"));
 
     await act(async () => {
@@ -102,13 +127,9 @@ describe("usePostStream", () => {
     });
 
     expect(storage_add).toHaveBeenCalledTimes(1);
-    const [, bytes] = storage_add.mock.calls[0];
-    expect(JSON.parse(new TextDecoder().decode(bytes as Uint8Array))).toEqual({
-      title: "Frontend dev wanted",
-      text: "Looking for a Preact dev",
-      roles: ["frontend"],
-      tags: ["preact"],
-    });
+    const [name, bytes] = storage_add.mock.calls[0];
+    // Generic storage name — no filename/type leaks into the plaintext manifest.
+    expect(name).toBe("enc.bin");
 
     const [, wire] = sendMessage.mock.calls[0];
     expect(wire.type).toBe("tc-chat:post");
@@ -116,9 +137,21 @@ describe("usePostStream", () => {
     expect(wire.parentId).toBeNull();
     expect(wire).not.toHaveProperty("title");
     expect(typeof wire.signature).toBe("string");
+    expect(isPostEnc(wire.enc)).toBe(true);
+
+    // The stored bytes are ciphertext — decrypting with the wire's enc
+    // recovers the plaintext JSON manifest.
+    const decrypted = await decryptPostBytes(wire.enc, bytes as Uint8Array);
+    expect(JSON.parse(new TextDecoder().decode(decrypted))).toEqual({
+      title: "Frontend dev wanted",
+      text: "Looking for a Preact dev",
+      roles: ["frontend"],
+      tags: ["preact"],
+    });
 
     expect(result.current.nodes).toHaveLength(1);
     expect(result.current.nodes[0].title).toBe("Frontend dev wanted");
+    expect(result.current.nodes[0].enc).toEqual(wire.enc);
   });
 
   it("createPost carries parentId for comments", async () => {
@@ -130,7 +163,7 @@ describe("usePostStream", () => {
     expect(result.current.nodes[0].parentId).toBe("root-1");
   });
 
-  it("createMedia (chat): stores raw file bytes and puts metadata on the wire (no JSON body)", async () => {
+  it("createMedia (chat): stores encrypted file bytes and puts metadata on the wire (no JSON body)", async () => {
     const { result } = renderHook(() => usePostStream("room-1", "chat", "Alice"));
     await act(async () => {
       await result.current.createMedia(new File([new Uint8Array([1, 2, 3])], "pic.png", { type: "image/png" }));
@@ -140,6 +173,12 @@ describe("usePostStream", () => {
     expect(wire.kind).toBe("media");
     expect(wire.mimeType).toBe("image/png");
     expect(wire.fileName).toBe("pic.png");
+    // fileSize stays the PLAINTEXT size — wire metadata visibility is
+    // unchanged by design; only the body bytes are protected at rest.
+    expect(wire.fileSize).toBe(3);
+    expect(isPostEnc(wire.enc)).toBe(true);
+    const [name] = storage_add.mock.calls[0];
+    expect(name).toBe("enc.bin");
     expect(result.current.nodes[0].fileName).toBe("pic.png");
   });
 
@@ -158,7 +197,9 @@ describe("usePostStream", () => {
 
     expect(storage_add).toHaveBeenCalledTimes(1);
     const [, bytes] = storage_add.mock.calls[0];
-    expect(JSON.parse(new TextDecoder().decode(bytes as Uint8Array))).toEqual({
+    const [, wire] = sendMessage.mock.calls[0];
+    const decrypted = await decryptPostBytes(wire.enc, bytes as Uint8Array);
+    expect(JSON.parse(new TextDecoder().decode(decrypted))).toEqual({
       title: "Standup",
       startsAt: 12345,
       location: "Room A",
@@ -202,7 +243,7 @@ describe("usePostStream", () => {
     expect(result.current.nodes).toHaveLength(0);
   });
 
-  it("hydrates a correctly signed incoming post for the matching surface", async () => {
+  it("hydrates a correctly signed incoming post for the matching surface (legacy plaintext wire, no enc)", async () => {
     storedBytes = new TextEncoder().encode(JSON.stringify({ title: "Designer wanted", text: "UI" }));
     const peer = await createRemotePeer();
     const { result } = renderHook(() => usePostStream("room-1", "board", "Alice"));
@@ -224,6 +265,119 @@ describe("usePostStream", () => {
     await waitFor(() => expect(result.current.nodes).toHaveLength(1));
     expect(result.current.nodes[0].fromName).toBe("Bob");
     expect(result.current.nodes[0].title).toBe("Designer wanted");
+    expect(result.current.nodes[0].enc).toBeUndefined();
+  });
+
+  it("round-trips an encrypted structured post: wire carries enc, hydrate decrypts the body", async () => {
+    const peer = await createRemotePeer();
+    const enc = generatePostEnc();
+    const plainBody = { title: "Secret project", text: "shh, don't tell" };
+    storedBytes = await encryptPostBytes(enc, new TextEncoder().encode(JSON.stringify(plainBody)));
+    const { result } = renderHook(() => usePostStream("room-1", "board", "Alice"));
+
+    const unsigned = {
+      type: "tc-chat:post",
+      surface: "board",
+      id: "enc-node-1",
+      parentId: null,
+      fromId: peer.did,
+      fromName: "Bob",
+      timestamp: 123,
+      kind: "project",
+      cid: "cid-enc",
+      enc,
+    };
+    await act(async () => {
+      eventListener?.(0, peer.did, { ...unsigned, signature: await peer.sign(unsigned) });
+    });
+    await waitFor(() => expect(result.current.nodes).toHaveLength(1));
+    expect(result.current.nodes[0].title).toBe("Secret project");
+    expect(result.current.nodes[0].text).toBe("shh, don't tell");
+    expect(result.current.nodes[0].enc).toEqual(enc);
+  });
+
+  it("discards a post wire with a malformed enc instead of crashing (treated as a body-fetch failure)", async () => {
+    storedBytes = new TextEncoder().encode(JSON.stringify({ text: "hi" }));
+    const peer = await createRemotePeer();
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { result } = renderHook(() => usePostStream("room-1", "board", "Alice"));
+
+    const unsigned = {
+      type: "tc-chat:post",
+      surface: "board",
+      id: "bad-enc-1",
+      parentId: null,
+      fromId: peer.did,
+      fromName: "Bob",
+      timestamp: 123,
+      kind: "text",
+      cid: "cid-remote",
+      enc: { v: 1, alg: "A256GCM" }, // missing `key` -> fails isPostEnc
+    };
+    await act(async () => {
+      eventListener?.(0, peer.did, { ...unsigned, signature: await peer.sign(unsigned) });
+    });
+    await waitFor(() => expect(warnSpy).toHaveBeenCalled());
+    // No crash, and no node is appended for the undecryptable body.
+    expect(result.current.nodes).toHaveLength(0);
+    warnSpy.mockRestore();
+  });
+
+  it("media/file wires within the auto-fetch cap eagerly pull bytes and pin them (relay rooms only)", async () => {
+    relayShouldRelayRoom.mockReturnValue(true);
+    storedBytes = new Uint8Array([9, 9, 9]);
+    const peer = await createRemotePeer();
+    const { result } = renderHook(() => usePostStream("room-1", "chat", "Alice"));
+
+    const unsigned = {
+      type: "tc-chat:post",
+      surface: "chat",
+      id: "media-1",
+      parentId: null,
+      fromId: peer.did,
+      fromName: "Bob",
+      timestamp: 123,
+      kind: "media",
+      cid: "cid-media",
+      mimeType: "image/png",
+      fileName: "pic.png",
+      fileSize: 3,
+    };
+    await act(async () => {
+      eventListener?.(0, peer.did, { ...unsigned, signature: await peer.sign(unsigned) });
+    });
+    await waitFor(() => expect(result.current.nodes).toHaveLength(1));
+    await waitFor(() =>
+      expect(relayNoteBody).toHaveBeenCalledWith("room-1", "media-1", "cid-media", 3),
+    );
+  });
+
+  it("does not eagerly fetch media/file bytes when the room isn't relay-eligible", async () => {
+    relayShouldRelayRoom.mockReturnValue(false);
+    storedBytes = new Uint8Array([9, 9, 9]);
+    const peer = await createRemotePeer();
+    const { result } = renderHook(() => usePostStream("room-1", "chat", "Alice"));
+
+    const unsigned = {
+      type: "tc-chat:post",
+      surface: "chat",
+      id: "media-2",
+      parentId: null,
+      fromId: peer.did,
+      fromName: "Bob",
+      timestamp: 123,
+      kind: "media",
+      cid: "cid-media-2",
+      mimeType: "image/png",
+      fileName: "pic.png",
+      fileSize: 3,
+    };
+    await act(async () => {
+      eventListener?.(0, peer.did, { ...unsigned, signature: await peer.sign(unsigned) });
+    });
+    await waitFor(() => expect(result.current.nodes).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(relayNoteBody).not.toHaveBeenCalled();
   });
 
   it("broadcasts posts scoped to the room's swarm topic (the raw room id)", async () => {
@@ -335,12 +489,13 @@ describe("usePostStream", () => {
     expect(sendMessage.mock.calls.at(-1)![1].op).toBe("remove");
   });
 
-  it("editPost broadcasts a signed room-scoped post-edit wire and updates the node", async () => {
+  it("editPost broadcasts a signed room-scoped post-edit wire reusing the post's enc and updates the node", async () => {
     const { result } = renderHook(() => usePostStream("room-1", "chat", "Alice"));
     await act(async () => {
       await result.current.createPost({ parentId: null, kind: "text", text: "before" });
     });
     const id = result.current.nodes[0].id;
+    const createWire = sendMessage.mock.calls[0][1];
 
     await act(async () => {
       await result.current.editPost(id, { text: "after" });
@@ -349,22 +504,28 @@ describe("usePostStream", () => {
     // The edited body is re-stored (post body + edit body = 2 adds).
     expect(storage_add).toHaveBeenCalledTimes(2);
     const [, bytes] = storage_add.mock.calls[1];
-    expect(JSON.parse(new TextDecoder().decode(bytes as Uint8Array)).text).toBe("after");
-
     const call = sendMessage.mock.calls.at(-1)!;
     const wire = call[1];
+    const decrypted = await decryptPostBytes(wire.enc, bytes as Uint8Array);
+    expect(JSON.parse(new TextDecoder().decode(decrypted)).text).toBe("after");
+
     expect(wire.type).toBe("tc-chat:post-edit");
     expect(wire.surface).toBe("chat");
     expect(wire.targetId).toBe(id);
     expect(wire.cid).toBe("cid-new");
     expect(typeof wire.signature).toBe("string");
+    expect(isPostEnc(wire.enc)).toBe(true);
+    // The post's one content key is reused across edits (blobs carry their
+    // own IVs), so a thumbnail carried over unchanged stays decryptable.
+    expect(wire.enc.key).toBe(createWire.enc.key);
     expect(call[3]).toBe("room-1"); // room-scoped send
 
     expect(result.current.nodes[0].text).toBe("after");
     expect(result.current.nodes[0].editedAt).toBe(wire.timestamp);
+    expect(result.current.nodes[0].enc).toEqual(wire.enc);
   });
 
-  it("deletePost broadcasts a signed post-delete wire and tombstones the node", async () => {
+  it("deletePost broadcasts a signed post-delete wire, tombstones the node, and releases the relay pin", async () => {
     const { result } = renderHook(() => usePostStream("room-1", "chat", "Alice"));
     await act(async () => {
       await result.current.createPost({ parentId: null, kind: "text", text: "bye" });
@@ -383,6 +544,7 @@ describe("usePostStream", () => {
     expect(call[1].targetId).toBe(id);
     expect(typeof call[1].signature).toBe("string");
     expect(call[3]).toBe("room-1");
+    expect(relayReleasePost).toHaveBeenCalledWith("room-1", id);
 
     const tomb = result.current.nodes[0];
     expect(tomb.deleted).toBe(true);
@@ -461,7 +623,7 @@ describe("usePostStream", () => {
     expect(result.current.nodes[0].editedAt).toBe(456);
   });
 
-  it("applies an incoming delete signed by the post's real author", async () => {
+  it("applies an incoming delete signed by the post's real author and releases the relay pin", async () => {
     storedBytes = new TextEncoder().encode(JSON.stringify({ text: "doomed" }));
     const peer = await createRemotePeer();
     const { result } = renderHook(() => usePostStream("room-1", "chat", "Alice"));
@@ -496,9 +658,10 @@ describe("usePostStream", () => {
     });
     await waitFor(() => expect(result.current.nodes[0].deleted).toBe(true));
     expect(result.current.nodes[0].text).toBeUndefined();
+    expect(relayReleasePost).toHaveBeenCalledWith("room-1", "p2");
   });
 
-  it("REJECTS an incoming delete whose fromId is not the target post's author", async () => {
+  it("REJECTS an incoming delete whose fromId is not the target post's author (and does not release its pin)", async () => {
     storedBytes = new TextEncoder().encode(JSON.stringify({ text: "mine" }));
     const author = await createRemotePeer();
     const attacker = await createRemotePeer();
@@ -537,6 +700,7 @@ describe("usePostStream", () => {
     await new Promise((r) => setTimeout(r, 30));
     expect(result.current.nodes[0].deleted).toBeUndefined();
     expect(result.current.nodes[0].text).toBe("mine");
+    expect(relayReleasePost).not.toHaveBeenCalled();
   });
 
   it("REJECTS an incoming edit whose fromId is not the target post's author", async () => {
@@ -632,6 +796,11 @@ describe("usePostStream", () => {
     expect(result.current.nodes).toHaveLength(1);
     rerender({ roomId: null });
     expect(result.current.nodes).toHaveLength(0);
+  });
+
+  it("sweeps the room's relay pin index once on mount", async () => {
+    renderHook(() => usePostStream("room-1", "chat", "Alice"));
+    await waitFor(() => expect(relaySweepRoom).toHaveBeenCalledWith("room-1"));
   });
 
   // --- pending-tombstone race: a delete wire finishing before the post it

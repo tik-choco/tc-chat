@@ -542,6 +542,44 @@ describe("chatStore", () => {
     expect(loadWireLog("r2").map((w) => w.id)).toEqual(["c"]);
   });
 
+  it("wire log buckets per surface: a busy chat stream can't evict board history", () => {
+    appendWireLog("r1", { id: "board-1", type: "tc-chat:post", surface: "board", timestamp: 1 });
+    // Overflow the chat bucket well past its cap.
+    for (let i = 0; i < 700; i += 1) {
+      appendWireLog("r1", { id: `chat-${i}`, type: "tc-chat:post", surface: "chat", timestamp: 2 + i });
+    }
+    const log = loadWireLog("r1");
+    expect(log.some((w) => w.id === "board-1")).toBe(true);
+    expect(log.filter((w) => w.surface === "chat").length).toBe(600);
+    // Oldest chat wires were the ones trimmed.
+    expect(log.some((w) => w.id === "chat-0")).toBe(false);
+    expect(log.some((w) => w.id === "chat-699")).toBe(true);
+  });
+
+  it("wire log merges buckets in timestamp order for replay", () => {
+    appendWireLog("r1", { id: "p1", type: "tc-chat:post", surface: "chat", timestamp: 10 });
+    appendWireLog("r1", { id: "rx", type: "tc-chat:reaction", timestamp: 20 }); // misc bucket
+    appendWireLog("r1", { id: "p2", type: "tc-chat:post", surface: "board", timestamp: 15 });
+    expect(loadWireLog("r1").map((w) => w.id)).toEqual(["p1", "p2", "rx"]);
+  });
+
+  it("migrates a legacy single-key wire log into buckets and removes the old key", () => {
+    localStorage.setItem(
+      "tc-chat:wirelog:legacy-room",
+      JSON.stringify([
+        { id: "old-chat", type: "tc-chat:post", surface: "chat", timestamp: 1 },
+        { id: "old-react", type: "tc-chat:reaction", timestamp: 2 },
+      ]),
+    );
+    appendWireLog("legacy-room", { id: "new-chat", type: "tc-chat:post", surface: "chat", timestamp: 3 });
+
+    expect(loadWireLog("legacy-room").map((w) => w.id)).toEqual(["old-chat", "old-react", "new-chat"]);
+    // Legacy key is gone once the buckets hold everything.
+    expect(localStorage.getItem("tc-chat:wirelog:legacy-room")).toBeNull();
+    // Migration is idempotent: a second load doesn't duplicate anything.
+    expect(loadWireLog("legacy-room")).toHaveLength(3);
+  });
+
   it("last view round-trips through localStorage", () => {
     saveLastView({ roomId: "my-team", tab: "board", threadId: "t-1" });
     expect(loadLastView()).toEqual({ roomId: "my-team", tab: "board", threadId: "t-1" });

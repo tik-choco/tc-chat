@@ -19,6 +19,8 @@ export const ko: Messages = {
     you: "나",
     edited: "(수정됨)",
     irreversible: "이 작업은 되돌릴 수 없습니다.",
+    retry: "다시 시도",
+    mediaUnavailable: "콘텐츠를 사용할 수 없어요 (작성자가 오프라인일 수 있어요)",
   },
 
   settings: {

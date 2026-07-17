@@ -1,18 +1,24 @@
-import { describe, it, expect, vi, afterEach, beforeAll } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, fireEvent, cleanup, waitFor } from "@testing-library/preact";
 import { MessageBubble, groupPosAt } from "./MessageBubble";
 import type { ChatMessage } from "../lib/chatStore";
+import { resolveStorageUrl, invalidateStorageUrl } from "../lib/mediaUrl";
 
-// MediaContent resolves a post's CID to blob bytes via mistClient storage.
-vi.mock("../lib/mistClient", () => ({
-  storage_get: vi.fn(async () => new Uint8Array([1, 2, 3])),
+// MediaContent resolves a post's CID (decrypting via `enc` when present)
+// through the shared mediaUrl resolver — mock it directly so tests control
+// success/failure/retry without touching mistlib storage or real blob URLs.
+vi.mock("../lib/mediaUrl", () => ({
+  resolveStorageUrl: vi.fn(),
+  invalidateStorageUrl: vi.fn(),
 }));
 
-// happy-dom has no URL.createObjectURL — stub it so blob resolution succeeds.
-beforeAll(() => {
-  if (!URL.createObjectURL) {
-    URL.createObjectURL = vi.fn(() => "blob:mock-url") as unknown as typeof URL.createObjectURL;
-  }
+const resolveStorageUrlMock = vi.mocked(resolveStorageUrl);
+const invalidateStorageUrlMock = vi.mocked(invalidateStorageUrl);
+
+beforeEach(() => {
+  resolveStorageUrlMock.mockReset();
+  resolveStorageUrlMock.mockImplementation(async (cid: string) => `blob:${cid}`);
+  invalidateStorageUrlMock.mockReset();
 });
 
 afterEach(cleanup);
@@ -452,7 +458,7 @@ describe("MessageBubble edit/delete", () => {
 describe("MessageBubble media lightbox", () => {
   const meDirectory = { me: { displayName: "Me", updatedAt: 1 } };
 
-  function imageMsg(): ChatMessage {
+  function imageMsg(over?: Partial<ChatMessage>): ChatMessage {
     return msg({
       id: "img1",
       kind: "media",
@@ -460,6 +466,7 @@ describe("MessageBubble media lightbox", () => {
       fileName: "shot.png",
       cid: "cid-img",
       text: undefined,
+      ...over,
     });
   }
 
@@ -484,6 +491,70 @@ describe("MessageBubble media lightbox", () => {
     const zoom = await waitFor(() => getByLabelText("shot.png を全画面表示"));
     fireEvent.click(zoom);
     expect(onMaximize).toHaveBeenCalledWith("img1");
+  });
+
+  it("passes the post's enc envelope through to resolveStorageUrl for decryption", async () => {
+    const enc = { v: 1 as const, alg: "A256GCM" as const, key: "base64key" };
+    render(
+      <MessageBubble
+        message={imageMsg({ enc })}
+        isOwn={false}
+        localId="me"
+        display="list"
+        directory={meDirectory}
+        onToggleReaction={noop}
+        onEditMessage={noop}
+        onDeleteMessage={noop}
+        onOpenProfile={noop}
+        onMaximize={noop}
+      />,
+    );
+    await waitFor(() => expect(resolveStorageUrlMock).toHaveBeenCalledWith("cid-img", enc));
+  });
+
+  it("a legacy post with no enc resolves with enc undefined (plaintext path unchanged)", async () => {
+    render(
+      <MessageBubble
+        message={imageMsg()}
+        isOwn={false}
+        localId="me"
+        display="list"
+        directory={meDirectory}
+        onToggleReaction={noop}
+        onEditMessage={noop}
+        onDeleteMessage={noop}
+        onOpenProfile={noop}
+        onMaximize={noop}
+      />,
+    );
+    await waitFor(() => expect(resolveStorageUrlMock).toHaveBeenCalledWith("cid-img", undefined));
+  });
+
+  it("shows a clickable retry affordance on media load failure, and retry re-resolves", async () => {
+    resolveStorageUrlMock.mockRejectedValueOnce(new Error("fetch failed"));
+    const { getByText, getByLabelText } = render(
+      <MessageBubble
+        message={imageMsg()}
+        isOwn={false}
+        localId="me"
+        display="list"
+        directory={meDirectory}
+        onToggleReaction={noop}
+        onEditMessage={noop}
+        onDeleteMessage={noop}
+        onOpenProfile={noop}
+        onMaximize={noop}
+      />,
+    );
+
+    const retryBtn = await waitFor(() => getByText("ファイルの取得に失敗しました"));
+    expect(retryBtn.tagName).toBe("BUTTON");
+
+    fireEvent.click(retryBtn);
+    // Retry invalidates the failed cache entry, then resolves again — the
+    // second (default-mocked) call succeeds, so the zoom button appears.
+    expect(invalidateStorageUrlMock).toHaveBeenCalledWith("cid-img");
+    await waitFor(() => getByLabelText("shot.png を全画面表示"));
   });
 });
 
