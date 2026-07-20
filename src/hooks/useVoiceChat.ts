@@ -25,6 +25,15 @@ export function useVoiceChat(roomId: string | null) {
   const [remoteTracks, setRemoteTracks] = useState<RemoteAudioTrack[]>([]);
   const localStreamRef = useRef<MediaStream | null>(null);
   const localTrackIdRef = useRef<string | null>(null);
+  // Blocks a second join() while getNode()/getUserMedia from the first call
+  // is still pending -- without this, two overlapping captures race and the
+  // first stream's tracks are never stopped (leaked capture indicator).
+  const joiningRef = useRef(false);
+  // Bumped by leave() (including its early-return path) so a join() that's
+  // still awaiting getNode()/getUserMedia can notice it was cancelled and
+  // discard whatever it just acquired instead of publishing into a room the
+  // user already left.
+  const generationRef = useRef(0);
 
   useEffect(() => {
     const unsubscribe = subscribeMediaEvent((eventType, payload: MediaEventPayload) => {
@@ -54,19 +63,33 @@ export function useVoiceChat(roomId: string | null) {
   }, [roomId]);
 
   async function join() {
-    if (!roomId || joined) return;
-    const node = await getNode();
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    localStreamRef.current = stream;
-    const [track] = stream.getAudioTracks();
-    const trackId = `${LOCAL_TRACK_PREFIX}:${track.id}`;
-    node.registerLocalTrack(trackId, track, { publish: true, enabled: true });
-    localTrackIdRef.current = trackId;
-    setJoined(true);
-    setMuted(false);
+    if (!roomId || joined || joiningRef.current) return;
+    joiningRef.current = true;
+    const generation = generationRef.current;
+    try {
+      const node = await getNode();
+      if (generationRef.current !== generation) return; // leave() ran before getNode() resolved
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      if (generationRef.current !== generation) {
+        // leave() ran while getUserMedia was pending -- don't publish a mic
+        // into a room the user already left.
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      localStreamRef.current = stream;
+      const [track] = stream.getAudioTracks();
+      const trackId = `${LOCAL_TRACK_PREFIX}:${track.id}`;
+      node.registerLocalTrack(trackId, track, { publish: true, enabled: true });
+      localTrackIdRef.current = trackId;
+      setJoined(true);
+      setMuted(false);
+    } finally {
+      joiningRef.current = false;
+    }
   }
 
   function leave() {
+    generationRef.current++;
     const node_ = localStreamRef.current;
     if (!node_) {
       setJoined(false);

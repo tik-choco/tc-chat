@@ -62,6 +62,15 @@ export function useScreenShare(roomId: string | null) {
   // Room the current share was started in — stop() must announce on that
   // room's channel even if the user has since switched rooms.
   const shareRoomIdRef = useRef<string | null>(null);
+  // Blocks a second start() while the picker/getDisplayMedia from the first
+  // call is still open -- without this, two overlapping captures race and
+  // the first stream's tracks are never stopped (leaked capture indicator).
+  const startingRef = useRef(false);
+  // Bumped by stop() (including its early-return path) so a start() that's
+  // still awaiting the picker or getNode() can notice it was cancelled and
+  // discard whatever it just acquired instead of publishing into a room the
+  // user already left.
+  const generationRef = useRef(0);
 
   useEffect(() => {
     const unsubscribe = subscribeMediaEvent((eventType, payload: MediaEventPayload) => {
@@ -128,41 +137,60 @@ export function useScreenShare(roomId: string | null) {
   }, [roomId]);
 
   async function start() {
-    if (!roomId || sharing) return;
-    setError(null);
-    setAudioMissing(false);
-    let stream: MediaStream;
+    if (!roomId || sharing || startingRef.current) return;
+    startingRef.current = true;
+    const generation = generationRef.current;
     try {
-      // audio: true asks the browser to show its native "share audio"
-      // checkbox in the picker — the user opts in there, not in-app.
-      stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-    } catch {
-      setError(t("media.startShareFailed"));
-      return;
-    }
-    const node = await getNode();
-    const [track] = stream.getVideoTracks();
-    const trackId = `${LOCAL_TRACK_PREFIX}:${track.id}`;
-    // The browser's native "stop sharing" control ends the video track;
-    // the audio track (if any) is stopped by stop() below.
-    track.addEventListener("ended", stop);
-    localStreamRef.current = stream;
-    localTrackIdRef.current = trackId;
-    shareRoomIdRef.current = roomId;
-    node.registerLocalTrack(trackId, track, { publish: true, enabled: true });
+      setError(null);
+      setAudioMissing(false);
+      let stream: MediaStream;
+      try {
+        // audio: true asks the browser to show its native "share audio"
+        // checkbox in the picker — the user opts in there, not in-app.
+        stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      } catch {
+        // stop() may have already run while the picker was open -- don't
+        // clobber whatever state it left behind.
+        if (generationRef.current === generation) setError(t("media.startShareFailed"));
+        return;
+      }
+      if (generationRef.current !== generation) {
+        // stop() ran while the picker was open -- discard the capture
+        // instead of publishing into a room the user already left.
+        stream.getTracks().forEach((tr) => tr.stop());
+        return;
+      }
+      const node = await getNode();
+      if (generationRef.current !== generation) {
+        stream.getTracks().forEach((tr) => tr.stop());
+        return;
+      }
+      const [track] = stream.getVideoTracks();
+      const trackId = `${LOCAL_TRACK_PREFIX}:${track.id}`;
+      // The browser's native "stop sharing" control ends the video track;
+      // the audio track (if any) is stopped by stop() below.
+      track.addEventListener("ended", stop);
+      localStreamRef.current = stream;
+      localTrackIdRef.current = trackId;
+      shareRoomIdRef.current = roomId;
+      node.registerLocalTrack(trackId, track, { publish: true, enabled: true });
 
-    const [audioTrack] = stream.getAudioTracks();
-    if (audioTrack) {
-      const audioTrackId = `${LOCAL_AUDIO_TRACK_PREFIX}:${audioTrack.id}`;
-      localAudioTrackIdRef.current = audioTrackId;
-      node.registerLocalTrack(audioTrackId, audioTrack, { publish: true, enabled: true });
-    } else {
-      setAudioMissing(true);
+      const [audioTrack] = stream.getAudioTracks();
+      if (audioTrack) {
+        const audioTrackId = `${LOCAL_AUDIO_TRACK_PREFIX}:${audioTrack.id}`;
+        localAudioTrackIdRef.current = audioTrackId;
+        node.registerLocalTrack(audioTrackId, audioTrack, { publish: true, enabled: true });
+      } else {
+        setAudioMissing(true);
+      }
+      setSharing(true);
+    } finally {
+      startingRef.current = false;
     }
-    setSharing(true);
   }
 
   function stop() {
+    generationRef.current++;
     const stream = localStreamRef.current;
     if (!stream) {
       setSharing(false);

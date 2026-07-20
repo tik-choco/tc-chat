@@ -420,6 +420,67 @@ describe("useScreenShare", () => {
     expect(result.current.remoteTracks[0].fromId).toBe("peer-2");
   });
 
+  it("blocks a second start() while the first getDisplayMedia call is still pending", async () => {
+    const track = makeTrack();
+    const stream = { getVideoTracks: () => [track], getAudioTracks: () => [], getTracks: () => [track] };
+    let resolveMedia: (s: typeof stream) => void;
+    const mediaPromise = new Promise<typeof stream>((resolve) => {
+      resolveMedia = resolve;
+    });
+    const getDisplayMedia = vi.fn(() => mediaPromise);
+    vi.stubGlobal("navigator", { mediaDevices: { getDisplayMedia } });
+
+    const { result } = renderHook(() => useScreenShare("room-1"));
+    let firstDone: Promise<void>;
+    await act(async () => {
+      firstDone = result.current.start();
+      // Second call issued while the first's media promise is still unresolved.
+      await result.current.start();
+    });
+
+    expect(getDisplayMedia).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveMedia(stream);
+      await firstDone;
+    });
+
+    expect(registerLocalTrack).toHaveBeenCalledTimes(1);
+    expect(result.current.sharing).toBe(true);
+  });
+
+  it("discards the capture if stop() runs while getDisplayMedia is still pending", async () => {
+    const track = makeTrack();
+    const stream = { getVideoTracks: () => [track], getAudioTracks: () => [], getTracks: () => [track] };
+    let resolveMedia: (s: typeof stream) => void;
+    const mediaPromise = new Promise<typeof stream>((resolve) => {
+      resolveMedia = resolve;
+    });
+    const getDisplayMedia = vi.fn(() => mediaPromise);
+    vi.stubGlobal("navigator", { mediaDevices: { getDisplayMedia } });
+
+    const { result } = renderHook(() => useScreenShare("room-1"));
+    let startDone: Promise<void>;
+    act(() => {
+      startDone = result.current.start();
+    });
+
+    // stop() (e.g. the room-change/unmount cleanup) runs before the picker
+    // resolves -- localStreamRef is still null at this point.
+    await act(async () => {
+      result.current.stop();
+    });
+
+    await act(async () => {
+      resolveMedia(stream);
+      await startDone;
+    });
+
+    expect(track.stop).toHaveBeenCalled();
+    expect(registerLocalTrack).not.toHaveBeenCalled();
+    expect(result.current.sharing).toBe(false);
+  });
+
   it("removes the tile when the receiving track itself ends (last-resort teardown)", async () => {
     const remoteTrack = makeTrack("remote-1");
     const { result } = renderHook(() => useScreenShare("room-1"));
