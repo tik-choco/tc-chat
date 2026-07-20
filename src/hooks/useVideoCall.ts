@@ -52,6 +52,15 @@ export function useVideoCall(roomId: string | null) {
   // "stopped" broadcast even after roomId has already changed (room switch)
   // or gone null (unmount), same reasoning as useScreenShare's teardown.
   const cameraRoomIdRef = useRef<string | null>(null);
+  // Blocks a second start() while getUserMedia from the first call is still
+  // pending -- without this, two overlapping captures race and the first
+  // stream's tracks are never stopped (leaked capture indicator).
+  const startingRef = useRef(false);
+  // Bumped by stop() (including its early-return path) so a start() that's
+  // still awaiting getUserMedia/getNode() can notice it was cancelled and
+  // discard whatever it just acquired instead of publishing into a room the
+  // user already left.
+  const generationRef = useRef(0);
 
   function dropTrack(trackId: string) {
     setRemoteTracks((prev) => prev.filter((rt) => rt.trackId !== trackId));
@@ -116,30 +125,49 @@ export function useVideoCall(roomId: string | null) {
   }, [roomId]);
 
   async function start() {
-    if (!roomId || on) return;
-    setError(null);
-    let stream: MediaStream;
+    if (!roomId || on || startingRef.current) return;
+    startingRef.current = true;
+    const generation = generationRef.current;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-    } catch {
-      setError(t("media.startCameraFailed"));
-      return;
+      setError(null);
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      } catch {
+        // stop() may have already run while the permission prompt was open --
+        // don't clobber whatever state it left behind.
+        if (generationRef.current === generation) setError(t("media.startCameraFailed"));
+        return;
+      }
+      if (generationRef.current !== generation) {
+        // stop() ran while getUserMedia was pending -- discard the capture
+        // instead of publishing into a room the user already left.
+        stream.getTracks().forEach((tr) => tr.stop());
+        return;
+      }
+      const node = await getNode();
+      if (generationRef.current !== generation) {
+        stream.getTracks().forEach((tr) => tr.stop());
+        return;
+      }
+      const [track] = stream.getVideoTracks();
+      const trackId = `${LOCAL_TRACK_PREFIX}:${track.id}`;
+      // The OS/browser can revoke the camera (device unplugged, permission
+      // pulled) without the user clicking our own stop button.
+      track.addEventListener("ended", stop);
+      localStreamRef.current = stream;
+      localTrackIdRef.current = trackId;
+      cameraRoomIdRef.current = roomId;
+      node.registerLocalTrack(trackId, track, { publish: true, enabled: true });
+      setLocalStream(stream);
+      setOn(true);
+    } finally {
+      startingRef.current = false;
     }
-    const node = await getNode();
-    const [track] = stream.getVideoTracks();
-    const trackId = `${LOCAL_TRACK_PREFIX}:${track.id}`;
-    // The OS/browser can revoke the camera (device unplugged, permission
-    // pulled) without the user clicking our own stop button.
-    track.addEventListener("ended", stop);
-    localStreamRef.current = stream;
-    localTrackIdRef.current = trackId;
-    cameraRoomIdRef.current = roomId;
-    node.registerLocalTrack(trackId, track, { publish: true, enabled: true });
-    setLocalStream(stream);
-    setOn(true);
   }
 
   function stop() {
+    generationRef.current++;
     const stream = localStreamRef.current;
     if (!stream) {
       setOn(false);
