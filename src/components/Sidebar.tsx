@@ -11,7 +11,6 @@ import {
   Copy,
   Check,
   Plus,
-  Users,
   User,
   CalendarPlus,
   RefreshCw,
@@ -306,7 +305,11 @@ export function Sidebar(props: {
           </div>
           <ul class="friend-list">
             {incomingRequests.map((friend) => {
-              const { name } = identityFor(directoryFor(friend.roomId), friend.did, friend.name);
+              const { name, avatarCid } = identityFor(
+                directoryFor(friend.roomId),
+                friend.did,
+                friend.name,
+              );
               return (
                 <li key={friend.did}>
                   <button
@@ -314,7 +317,7 @@ export function Sidebar(props: {
                     class="room-item"
                     onClick={() => onOpenPeerProfile(friend.did, name)}
                   >
-                    <Users size={16} class="room-icon" />
+                    <Avatar id={friend.did} name={name} avatarCid={avatarCid} size={20} />
                     <span class="room-item-text">
                       <span class="room-name">{name}</span>
                       <span class="request-tag">{t("friends.incomingLabel")}</span>
@@ -342,7 +345,11 @@ export function Sidebar(props: {
               );
             })}
             {outgoingRequests.map((friend) => {
-              const { name } = identityFor(directoryFor(friend.roomId), friend.did, friend.name);
+              const { name, avatarCid } = identityFor(
+                directoryFor(friend.roomId),
+                friend.did,
+                friend.name,
+              );
               return (
                 <li key={friend.did}>
                   <button
@@ -350,7 +357,7 @@ export function Sidebar(props: {
                     class="room-item"
                     onClick={() => onOpenPeerProfile(friend.did, name)}
                   >
-                    <Users size={16} class="room-icon" />
+                    <Avatar id={friend.did} name={name} avatarCid={avatarCid} size={20} />
                     <span class="room-item-text">
                       <span class="room-name">{name}</span>
                       <span class="request-tag">{t("friends.outgoingLabel")}</span>
@@ -377,7 +384,11 @@ export function Sidebar(props: {
         <ul class="friend-list">
           {acceptedFriends.length === 0 && <li class="friend-empty">{t("friends.empty")}</li>}
           {acceptedFriends.map((friend) => {
-            const { name } = identityFor(directoryFor(friend.roomId), friend.did, friend.name);
+            const { name, avatarCid } = identityFor(
+              directoryFor(friend.roomId),
+              friend.did,
+              friend.name,
+            );
             const online = onlineDids.has(friend.did);
             return (
               <li key={friend.did}>
@@ -387,7 +398,7 @@ export function Sidebar(props: {
                   onClick={() => onSelectRoom(friend.roomId)}
                 >
                   <span class="friend-avatar-wrap">
-                    <Users size={16} class="room-icon" />
+                    <Avatar id={friend.did} name={name} avatarCid={avatarCid} size={20} />
                     {online && <span class="online-dot" title={t("friends.online")} />}
                   </span>
                   <span class="room-item-text">
