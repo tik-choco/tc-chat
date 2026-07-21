@@ -56,6 +56,7 @@ import {
   saveMediaCaution,
   loadLastView,
   saveLastView,
+  purgeStaleGlobalRoomStorage,
   type ChatDisplay,
 } from "./lib/chatStore";
 import { getNode, createMistStorageBackend } from "./lib/mistClient";
@@ -101,6 +102,13 @@ export function App() {
   const [personalCalendarOpen, setPersonalCalendarOpen] = useState(false);
   const [roomNameOpen, setRoomNameOpen] = useState(false);
   const [roomIdentityOpen, setRoomIdentityOpen] = useState(false);
+
+  // The global room became ephemeral (see chatStore's isEphemeralRoom) —
+  // one-time sweep of whatever it persisted to this browser back when it
+  // wasn't. No-ops once already clean.
+  useEffect(() => {
+    purgeStaleGlobalRoomStorage();
+  }, []);
 
   const t = useT();
   const theme = useTheme();

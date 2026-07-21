@@ -12,9 +12,12 @@ import {
   loadWireLog,
   loadLastView,
   saveLastView,
+  purgeStaleGlobalRoomStorage,
+  __clearEphemeralRoomStoreForTests,
   type PostNode,
   type PostSurface,
 } from "./chatStore";
+import { GLOBAL_ROOM_ID } from "./util";
 
 function post(
   overrides: Partial<PostNode> & Pick<PostNode, "id" | "roomId"> & { surface?: PostSurface },
@@ -36,6 +39,7 @@ function post(
 describe("chatStore", () => {
   beforeEach(() => {
     localStorage.clear();
+    __clearEphemeralRoomStoreForTests();
   });
 
   it("appends and sorts chat posts by timestamp, deduping by id", () => {
@@ -604,5 +608,58 @@ describe("chatStore", () => {
       JSON.stringify({ roomId: "r", tab: "bogus", threadId: 7 }),
     );
     expect(loadLastView()).toEqual({ roomId: "r", tab: "chat", threadId: null });
+  });
+
+  describe("the global room is ephemeral", () => {
+    it("never writes global room posts to localStorage, but still round-trips them in-memory", () => {
+      appendPost(post({ id: "g1", roomId: GLOBAL_ROOM_ID, surface: "chat", text: "hi" }));
+
+      expect(loadPosts("chat", GLOBAL_ROOM_ID).map((p) => p.id)).toEqual(["g1"]);
+      expect(localStorage.getItem("tc-chat:messages:" + GLOBAL_ROOM_ID)).toBeNull();
+    });
+
+    it("does not leak into other rooms and starts empty once cleared (simulating a reload)", () => {
+      appendPost(post({ id: "g1", roomId: GLOBAL_ROOM_ID, surface: "chat", text: "hi" }));
+      appendPost(post({ id: "r1msg", roomId: "r1", surface: "chat", text: "normal room" }));
+
+      expect(loadPosts("chat", "r1").map((p) => p.id)).toEqual(["r1msg"]);
+      expect(localStorage.getItem("tc-chat:messages:r1")).not.toBeNull();
+
+      __clearEphemeralRoomStoreForTests();
+      expect(loadPosts("chat", GLOBAL_ROOM_ID)).toHaveLength(0);
+      // The normal room is backed by real localStorage, untouched by the reset.
+      expect(loadPosts("chat", "r1").map((p) => p.id)).toEqual(["r1msg"]);
+    });
+
+    it("still merges reactions/edits/deletes for global posts within the same session", () => {
+      appendPost(post({ id: "g1", roomId: GLOBAL_ROOM_ID, surface: "chat", fromId: "a", text: "hi" }));
+      applyReaction(GLOBAL_ROOM_ID, "g1", { emoji: "👍", fromId: "b", fromName: "B" }, "add");
+      expect(loadPosts("chat", GLOBAL_ROOM_ID)[0].reactions).toHaveLength(1);
+
+      applyPostDelete("chat", GLOBAL_ROOM_ID, "g1", "a");
+      const tomb = loadPosts("chat", GLOBAL_ROOM_ID)[0];
+      expect(tomb.deleted).toBe(true);
+      expect(tomb.text).toBeUndefined();
+    });
+
+    it("does not persist the global room's wire log", () => {
+      appendWireLog(GLOBAL_ROOM_ID, { id: "w1", type: "tc-chat:post", surface: "chat" });
+      expect(loadWireLog(GLOBAL_ROOM_ID)).toHaveLength(0);
+    });
+
+    it("purgeStaleGlobalRoomStorage removes leftover pre-ephemeral data without touching other rooms", () => {
+      // Simulate data left over from before the global room became ephemeral.
+      localStorage.setItem("tc-chat:messages:" + GLOBAL_ROOM_ID, JSON.stringify([{ id: "old" }]));
+      localStorage.setItem("tc-chat:reactions:" + GLOBAL_ROOM_ID, JSON.stringify({ old: [] }));
+      localStorage.setItem("tc-chat:wirelog2:chat:" + GLOBAL_ROOM_ID, JSON.stringify([{ id: "w" }]));
+      localStorage.setItem("tc-chat:messages:r1", JSON.stringify([{ id: "keep" }]));
+
+      purgeStaleGlobalRoomStorage();
+
+      expect(localStorage.getItem("tc-chat:messages:" + GLOBAL_ROOM_ID)).toBeNull();
+      expect(localStorage.getItem("tc-chat:reactions:" + GLOBAL_ROOM_ID)).toBeNull();
+      expect(localStorage.getItem("tc-chat:wirelog2:chat:" + GLOBAL_ROOM_ID)).toBeNull();
+      expect(localStorage.getItem("tc-chat:messages:r1")).not.toBeNull();
+    });
   });
 });
