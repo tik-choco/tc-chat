@@ -27,6 +27,7 @@ import { DevConsole } from "./components/DevConsole";
 import { Onboarding } from "./components/Onboarding";
 import { PersonalCalendarPanel } from "./components/PersonalCalendarPanel";
 import { RoomNamePanel } from "./components/RoomNamePanel";
+import { RoomIdentityPanel } from "./components/RoomIdentityPanel";
 import { useRooms } from "./hooks/useRooms";
 import { useFriends } from "./hooks/useFriends";
 import { useChatRoom } from "./hooks/useChatRoom";
@@ -42,6 +43,7 @@ import { useMessageAlerts } from "./hooks/useMessageAlerts";
 import { useProfile } from "./hooks/useProfile";
 import { useProfileDirectory } from "./hooks/useProfileDirectory";
 import { useRoomDisplayName } from "./hooks/useRoomDisplayName";
+import { useRoomMeta } from "./hooks/useRoomMeta";
 import { useTheme } from "./hooks/useTheme";
 import {
   loadUsername,
@@ -98,6 +100,7 @@ export function App() {
   const [onboardingOpen, setOnboardingOpen] = useState(() => shouldShowOnboarding());
   const [personalCalendarOpen, setPersonalCalendarOpen] = useState(false);
   const [roomNameOpen, setRoomNameOpen] = useState(false);
+  const [roomIdentityOpen, setRoomIdentityOpen] = useState(false);
 
   const t = useT();
   const theme = useTheme();
@@ -168,6 +171,13 @@ export function App() {
     profile,
     roomDisplayName,
   );
+  // The room's SHARED name/icon (set by any peer, synced to everyone) —
+  // distinct from `rooms`' per-peer local labels above.
+  const {
+    meta: sharedRoomMeta,
+    metaFor: sharedRoomMetaFor,
+    setRoomMeta,
+  } = useRoomMeta(status === "joined" ? activeRoomId : null);
 
   useEffect(() => {
     if (!username) return;
@@ -313,11 +323,15 @@ export function App() {
   // (and "is this a DM" flag) from the friends list instead. Only accepted
   // friends have a live DM — pending requests don't get a channel yet.
   const activeFriend = friends.find((f) => f.roomId === activeRoomId && f.status === "accepted");
-  const roomName =
-    activeRoom?.name ??
-    (activeFriend ? identityFor(directory, activeFriend.did, activeFriend.name).name : undefined) ??
-    activeRoomId;
   const isDm = activeFriend !== undefined;
+  // The shared name (set by any peer, synced via useRoomMeta) wins over this
+  // peer's own local room label; DMs and the global room never have one.
+  const roomName =
+    (!isDm && sharedRoomMeta?.name) ||
+    activeRoom?.name ||
+    (activeFriend ? identityFor(directory, activeFriend.did, activeFriend.name).name : undefined) ||
+    activeRoomId;
+  const canEditRoomIdentity = status === "joined" && activeRoomId !== GLOBAL_ROOM_ID && !isDm;
 
   return (
     <div class="app-shell">
@@ -340,6 +354,7 @@ export function App() {
           setSidebarOpen(false);
         }}
         rooms={rooms}
+        roomMetaFor={sharedRoomMetaFor}
         activeRoomId={activeRoomId}
         onSelectRoom={handleSelectRoom}
         onJoinRoom={(id, name) => joinRoom(id, name)}
@@ -369,6 +384,7 @@ export function App() {
         chatWindowProps={{
           roomId: activeRoomId,
           roomName,
+          roomIconCid: isDm ? undefined : sharedRoomMeta?.iconCid,
           isDm,
           localNodeId: nodeId,
           messages,
@@ -387,6 +403,7 @@ export function App() {
           onDeleteMessage: deleteMessage,
           onOpenProfile: (did, name) => setPeerProfile({ did, name }),
           onEditSelfRoomName: () => setRoomNameOpen(true),
+          onEditRoomIdentity: canEditRoomIdentity ? () => setRoomIdentityOpen(true) : undefined,
           voice,
           screenShare,
           videoCall,
@@ -474,6 +491,16 @@ export function App() {
           value={roomNameOverride}
           onSave={setRoomNameOverride}
           onClose={() => setRoomNameOpen(false)}
+        />
+      )}
+
+      {roomIdentityOpen && canEditRoomIdentity && (
+        <RoomIdentityPanel
+          roomId={activeRoomId}
+          currentName={roomName}
+          currentIconCid={sharedRoomMeta?.iconCid}
+          onSave={setRoomMeta}
+          onClose={() => setRoomIdentityOpen(false)}
         />
       )}
 

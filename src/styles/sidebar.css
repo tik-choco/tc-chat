@@ -158,7 +158,6 @@
 }
 
 .room-list,
-.member-list,
 .friend-list {
   list-style: none;
   margin: 0;
@@ -168,11 +167,29 @@
   gap: 2px;
 }
 
-.room-list li,
 .friend-list li {
   display: flex;
   align-items: center;
   gap: 2px;
+}
+
+/* Each room row can grow a second line underneath (the facepile of who's
+   currently in that room), so it's a column, not a single flex row. */
+.room-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.room-row-main {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Indented to line up under the room name, past the leading icon. */
+.room-row-facepile {
+  padding-left: 2.1rem;
 }
 
 .room-item {
@@ -211,6 +228,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   display: block;
+}
+
+/* Friend names sit next to a now-larger avatar (see .friend-avatar-wrap) —
+   bump them up a touch so the row doesn't look avatar-heavy. */
+.friend-list .room-name {
+  font-size: 1rem;
 }
 
 /* The room's shared join key, shown under a custom display name so it stays
@@ -336,32 +359,38 @@
   color: var(--danger-text);
 }
 
-.member-item {
+/* Compact "who's in this room" row: overlapping avatars instead of a full
+   name list — the room is already known from context, so only the avatar
+   (with the name as a tooltip) is needed. */
+.member-facepile {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
-  padding: 0.35rem 0.5rem;
-  border-radius: var(--radius-s);
-  color: var(--text);
-  font-size: 0.88rem;
+  gap: 2px;
 }
 
-/* A member row that opens the peer's profile card when clicked. */
-.member-item--btn {
-  width: 100%;
-  border: none;
-  background: transparent;
+.facepile-avatar {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  background: var(--surface);
   cursor: pointer;
-  text-align: left;
-  font: inherit;
-  font-size: 0.88rem;
+  margin-right: -8px;
+  transition: transform var(--dur-fast, 120ms) var(--ease, ease);
 }
 
-.member-item--btn:hover {
-  background: var(--surface-2);
+.facepile-avatar--static {
+  cursor: default;
 }
 
-.member-empty,
+.facepile-avatar:hover,
+.facepile-avatar:focus-visible {
+  transform: translateY(-2px);
+  z-index: 1;
+}
+
 .friend-empty {
   padding: 0.35rem 0.5rem;
   font-size: 0.82rem;
@@ -400,8 +429,8 @@
   position: absolute;
   right: -1px;
   bottom: -1px;
-  width: 8px;
-  height: 8px;
+  width: 11px;
+  height: 11px;
   border-radius: 999px;
   background: var(--success);
   border: 2px solid var(--surface);

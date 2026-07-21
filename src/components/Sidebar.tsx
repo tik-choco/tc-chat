@@ -21,6 +21,7 @@ import type { Peer } from "../hooks/usePresence";
 import type { Profile } from "../lib/profileStore";
 import type { Friend } from "../lib/friendsStore";
 import { identityFor, type ProfileDirectory } from "../lib/profileDirectory";
+import type { RoomMetaRecord } from "../lib/roomMetaStore";
 import type { Theme } from "../hooks/useTheme";
 import { GLOBAL_ROOM_ID, newId } from "../lib/util";
 import { useT } from "../lib/i18n";
@@ -37,6 +38,9 @@ export function Sidebar(props: {
   onOpenSettings: () => void;
   onOpenPersonalCalendar: () => void;
   rooms: RoomMeta[];
+  /** The room's SHARED name/icon (set by any peer, synced to everyone) — falls
+   * back to `room.name` (this peer's own local label) when absent. */
+  roomMetaFor: (roomId: string) => RoomMetaRecord | undefined;
   activeRoomId: string;
   onSelectRoom: (id: string) => void;
   onJoinRoom: (id: string, name: string) => void;
@@ -64,6 +68,7 @@ export function Sidebar(props: {
     onOpenSettings,
     onOpenPersonalCalendar,
     rooms,
+    roomMetaFor,
     activeRoomId,
     onSelectRoom,
     onJoinRoom,
@@ -214,54 +219,94 @@ export function Sidebar(props: {
           </button>
         </div>
         <ul class="room-list">
-          {rooms.map((room) => (
-            <li key={room.id}>
-              <button
-                type="button"
-                class={`room-item ${room.id === activeRoomId ? "room-item--active" : ""}`}
-                onClick={() => onSelectRoom(room.id)}
-              >
-                {room.id === GLOBAL_ROOM_ID ? (
-                  <Globe size={16} class="room-icon" />
-                ) : (
-                  <Hash size={16} class="room-icon" />
-                )}
-                <span class="room-item-text">
-                  <span class="room-name">{room.name}</span>
-                  {room.id !== GLOBAL_ROOM_ID && room.id !== room.name && (
-                    <span class="room-id" title={t("account.roomIdTooltip", { id: room.id })}>
-                      {room.id}
-                    </span>
+          {rooms.map((room) => {
+            // The shared name/icon (set by any peer, synced via useRoomMeta)
+            // wins over this peer's own local label when present.
+            const shared = roomMetaFor(room.id);
+            const label = shared?.name || room.name;
+            return (
+            <li key={room.id} class="room-row">
+              <div class="room-row-main">
+                <button
+                  type="button"
+                  class={`room-item ${room.id === activeRoomId ? "room-item--active" : ""}`}
+                  onClick={() => onSelectRoom(room.id)}
+                >
+                  {room.id === GLOBAL_ROOM_ID ? (
+                    <Globe size={16} class="room-icon" />
+                  ) : shared?.iconCid ? (
+                    <Avatar id={room.id} name={label} avatarCid={shared.iconCid} size={32} />
+                  ) : (
+                    <Hash size={16} class="room-icon" />
                   )}
-                </span>
-                {(unread[room.id] ?? 0) > 0 && (
-                  <span class="unread-badge">{unread[room.id]}</span>
+                  <span class="room-item-text">
+                    <span class="room-name">{label}</span>
+                    {room.id !== GLOBAL_ROOM_ID && room.id !== label && (
+                      <span class="room-id" title={t("account.roomIdTooltip", { id: room.id })}>
+                        {room.id}
+                      </span>
+                    )}
+                  </span>
+                  {(unread[room.id] ?? 0) > 0 && (
+                    <span class="unread-badge">{unread[room.id]}</span>
+                  )}
+                </button>
+                {room.id !== GLOBAL_ROOM_ID && (
+                  <button
+                    type="button"
+                    class={`room-copy ${copiedRoomId === room.id ? "room-copy--copied" : ""}`}
+                    title={copiedRoomId === room.id ? t("common.copied") : t("account.copyRoomId")}
+                    aria-label={
+                      copiedRoomId === room.id ? t("common.copied") : t("account.copyRoomId")
+                    }
+                    onClick={(e) => copyRoomId(room.id, e)}
+                  >
+                    {copiedRoomId === room.id ? <Check size={14} /> : <Copy size={14} />}
+                  </button>
                 )}
-              </button>
-              {room.id !== GLOBAL_ROOM_ID && (
-                <button
-                  type="button"
-                  class={`room-copy ${copiedRoomId === room.id ? "room-copy--copied" : ""}`}
-                  title={copiedRoomId === room.id ? t("common.copied") : t("account.copyRoomId")}
-                  aria-label={copiedRoomId === room.id ? t("common.copied") : t("account.copyRoomId")}
-                  onClick={(e) => copyRoomId(room.id, e)}
-                >
-                  {copiedRoomId === room.id ? <Check size={14} /> : <Copy size={14} />}
-                </button>
-              )}
-              {room.id !== GLOBAL_ROOM_ID && (
-                <button
-                  type="button"
-                  class="room-leave"
-                  title={t("account.leaveRoom")}
-                  aria-label={t("account.leaveRoom")}
-                  onClick={() => onLeaveRoom(room.id)}
-                >
-                  <X size={16} />
-                </button>
+                {room.id !== GLOBAL_ROOM_ID && (
+                  <button
+                    type="button"
+                    class="room-leave"
+                    title={t("account.leaveRoom")}
+                    aria-label={t("account.leaveRoom")}
+                    onClick={() => onLeaveRoom(room.id)}
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+              {/* Presence is only ever known for the currently joined room, so
+                  "who's here" only makes sense pinned to that one row. */}
+              {room.id === activeRoomId && peers.length > 0 && (
+                <div class="member-facepile room-row-facepile">
+                  {peers.map((peer) =>
+                    peer.did ? (
+                      <button
+                        key={peer.id}
+                        type="button"
+                        class="facepile-avatar"
+                        title={peer.name}
+                        aria-label={t("account.viewPeerProfile", { name: peer.name })}
+                        onClick={() => onOpenPeerProfile(peer.did!, peer.name)}
+                      >
+                        <Avatar id={peer.id} name={peer.name} size={22} />
+                      </button>
+                    ) : (
+                      <span
+                        key={peer.id}
+                        class="facepile-avatar facepile-avatar--static"
+                        title={peer.name}
+                      >
+                        <Avatar id={peer.id} name={peer.name} size={22} />
+                      </span>
+                    ),
+                  )}
+                </div>
               )}
             </li>
-          ))}
+            );
+          })}
         </ul>
 
         {joinOpen && (
@@ -317,7 +362,7 @@ export function Sidebar(props: {
                     class="room-item"
                     onClick={() => onOpenPeerProfile(friend.did, name)}
                   >
-                    <Avatar id={friend.did} name={name} avatarCid={avatarCid} size={20} />
+                    <Avatar id={friend.did} name={name} avatarCid={avatarCid} size={32} />
                     <span class="room-item-text">
                       <span class="room-name">{name}</span>
                       <span class="request-tag">{t("friends.incomingLabel")}</span>
@@ -357,7 +402,7 @@ export function Sidebar(props: {
                     class="room-item"
                     onClick={() => onOpenPeerProfile(friend.did, name)}
                   >
-                    <Avatar id={friend.did} name={name} avatarCid={avatarCid} size={20} />
+                    <Avatar id={friend.did} name={name} avatarCid={avatarCid} size={32} />
                     <span class="room-item-text">
                       <span class="room-name">{name}</span>
                       <span class="request-tag">{t("friends.outgoingLabel")}</span>
@@ -379,7 +424,7 @@ export function Sidebar(props: {
         </div>
       )}
 
-      <div class="sidebar-section">
+      <div class="sidebar-section sidebar-section--grow">
         <h3>{t("friends.title")}</h3>
         <ul class="friend-list">
           {acceptedFriends.length === 0 && <li class="friend-empty">{t("friends.empty")}</li>}
@@ -398,7 +443,7 @@ export function Sidebar(props: {
                   onClick={() => onSelectRoom(friend.roomId)}
                 >
                   <span class="friend-avatar-wrap">
-                    <Avatar id={friend.did} name={name} avatarCid={avatarCid} size={20} />
+                    <Avatar id={friend.did} name={name} avatarCid={avatarCid} size={32} />
                     {online && <span class="online-dot" title={t("friends.online")} />}
                   </span>
                   <span class="room-item-text">
@@ -435,35 +480,6 @@ export function Sidebar(props: {
               </li>
             );
           })}
-        </ul>
-      </div>
-
-      <div class="sidebar-section sidebar-section--grow">
-        <h3>{t("account.online", { count: peers.length })}</h3>
-        <ul class="member-list">
-          {peers.length === 0 && <li class="member-empty">{t("account.noOtherPeers")}</li>}
-          {peers.map((peer) => (
-            <li key={peer.id}>
-              {peer.did ? (
-                // Clickable only once we know the peer's DID (from presence) —
-                // that's the key into the profile directory.
-                <button
-                  type="button"
-                  class="member-item member-item--btn"
-                  title={t("account.viewPeerProfile", { name: peer.name })}
-                  onClick={() => onOpenPeerProfile(peer.did!, peer.name)}
-                >
-                  <Avatar id={peer.id} name={peer.name} size={22} />
-                  {peer.name}
-                </button>
-              ) : (
-                <div class="member-item">
-                  <Avatar id={peer.id} name={peer.name} size={22} />
-                  {peer.name}
-                </div>
-              )}
-            </li>
-          ))}
         </ul>
       </div>
     </aside>

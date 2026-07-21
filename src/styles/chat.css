@@ -44,6 +44,25 @@
   font-weight: 700;
 }
 
+/* Opens RoomIdentityPanel — the room's SHARED name/icon, next to its title. */
+.topbar-edit-room {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+}
+
+.topbar-edit-room:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
 /* Persistent reminder that the global room is a public, always-open space —
    the tooltip carries the full caution; see onboarding for the first-run
    explanation. */

@@ -273,8 +273,6 @@ export const ko: Messages = {
     roomNamePlaceholder: "표시 이름 (선택)",
     generateRoomId: "무작위 ID 생성",
     join: "참가",
-    online: "온라인 ({count})",
-    noOtherPeers: "아직 다른 참가자가 없어요",
     viewPeerProfile: "{name}님의 프로필 보기",
 
     // RoomNamePanel
@@ -283,6 +281,12 @@ export const ko: Messages = {
     roomNicknamePlaceholder: "{name} (프로필 표시 이름)",
     roomNicknameHint:
       "이 룸에서 보내는 메시지와 게시물에 이 이름이 사용되며 룸 참가자에게 공유됩니다. 비워 두면 프로필 표시 이름을 사용합니다.",
+
+    editRoomIdentity: "룸 이름과 아이콘 편집",
+    roomIdentityTitle: "룸 이름과 아이콘",
+    roomIdentityNameLabel: "룸 이름 (모두에게 공유됨)",
+    roomIdentityHint:
+      "여기서 설정한 이름과 아이콘은 이 룸의 모든 사람에게 공유됩니다. 이름을 비워 두면 각자 로컬에서 설정한 이름으로 돌아갑니다.",
 
     // VrchatGuide — sentence fragments keep the surrounding <strong>/<code>
     // markup; spaces at the fragment edges are part of the rendered text.

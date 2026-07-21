@@ -167,11 +167,6 @@
     height: 42px;
   }
 
-  .member-item {
-    padding-top: 0.45rem;
-    padding-bottom: 0.45rem;
-  }
-
   /* --- Modals become near-full-width sheets on tiny screens -------- */
   .modal-overlay {
     padding: 0.75rem;

@@ -4,6 +4,7 @@ import type { ProfileDirectory } from "../lib/profileDirectory";
 import type { Peer } from "../hooks/usePresence";
 import type { TcStorageFileEntry } from "../interop/tcStorageFiles";
 import { Hash, Globe, User, AlertTriangle, Pencil } from "lucide-preact";
+import { Avatar } from "./Avatar";
 import { MessageBubble, groupPosAt } from "./MessageBubble";
 import { MessageInput } from "./MessageInput";
 import { CallControls } from "./CallControls";
@@ -22,6 +23,8 @@ import { useT } from "../lib/i18n";
 export function ChatWindow(props: {
   roomId: string;
   roomName: string;
+  /** The room's SHARED icon (mistlib storage CID), synced to everyone via useRoomMeta. */
+  roomIconCid?: string;
   /** True when the active room is a friend's auto-derived DM room. */
   isDm: boolean;
   localNodeId: string | null;
@@ -44,6 +47,8 @@ export function ChatWindow(props: {
   onOpenProfile: (did: string, fallbackName: string) => void;
   /** Open the per-room display-name override editor for the current room. */
   onEditSelfRoomName: () => void;
+  /** Open the SHARED room name/icon editor — omitted for rooms that can't have one (global, DMs). */
+  onEditRoomIdentity?: () => void;
   voice: ReturnType<typeof useVoiceChat>;
   screenShare: ReturnType<typeof useScreenShare>;
   videoCall: ReturnType<typeof useVideoCall>;
@@ -51,6 +56,7 @@ export function ChatWindow(props: {
   const {
     roomId,
     roomName,
+    roomIconCid,
     isDm,
     localNodeId,
     messages,
@@ -69,6 +75,7 @@ export function ChatWindow(props: {
     onDeleteMessage,
     onOpenProfile,
     onEditSelfRoomName,
+    onEditRoomIdentity,
     voice,
     screenShare,
     videoCall,
@@ -151,10 +158,23 @@ export function ChatWindow(props: {
             <Globe size={18} class="topbar-hash" />
           ) : isDm ? (
             <User size={18} class="topbar-hash" />
+          ) : roomIconCid ? (
+            <Avatar id={roomId} name={roomName} avatarCid={roomIconCid} size={34} />
           ) : (
             <Hash size={18} class="topbar-hash" />
           )}
           <h2>{roomName}</h2>
+          {onEditRoomIdentity && (
+            <button
+              type="button"
+              class="topbar-edit-room"
+              title={t("account.editRoomIdentity")}
+              aria-label={t("account.editRoomIdentity")}
+              onClick={onEditRoomIdentity}
+            >
+              <Pencil size={13} />
+            </button>
+          )}
           {roomId === GLOBAL_ROOM_ID && (
             <span class="topbar-public-badge" title={t("chat.globalRoomWarning")}>
               <AlertTriangle size={12} />
