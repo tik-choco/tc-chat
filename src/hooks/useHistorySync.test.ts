@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook } from "@testing-library/preact";
 import { useHistorySync } from "./useHistorySync";
 import { appendWireLog } from "../lib/chatStore";
+import { GLOBAL_ROOM_ID } from "../lib/util";
 
 const sendMessage = vi.fn();
 let eventListener: ((eventType: number, fromId: string, payload: unknown) => void) | null = null;
@@ -71,5 +72,18 @@ describe("useHistorySync", () => {
     await vi.runAllTimersAsync();
 
     expect(sendMessage.mock.calls.some(([to]) => to === "peer-x")).toBe(false);
+  });
+
+  it("never requests or answers history for the ephemeral global room", async () => {
+    appendWireLog(GLOBAL_ROOM_ID, { id: "w1", type: "tc-chat:message" });
+    renderHook(() => useHistorySync(GLOBAL_ROOM_ID));
+    eventListener?.(0, "peer-x", {
+      type: "tc-chat:history-request",
+      id: "q",
+      roomId: GLOBAL_ROOM_ID,
+    });
+    await vi.runAllTimersAsync();
+
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 });

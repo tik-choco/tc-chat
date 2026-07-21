@@ -3,8 +3,40 @@
 // concept of a room's message "history", so each peer keeps its own
 // per-room message index in localStorage, keyed by room id.
 
-import { ROOM_TABS, type AppLocation, type RoomTab } from "./util";
+import { GLOBAL_ROOM_ID, ROOM_TABS, type AppLocation, type RoomTab } from "./util";
 import type { PostEnc } from "../crypto/postCipher";
+
+// The global room is a wide-open public space, not a persistent chat log: it
+// intentionally does NOT sync history to late joiners (see useHistorySync)
+// and does NOT survive a page reload either. Rather than special-casing every
+// read/write call site, everything keyed by roomId is routed through
+// roomStorageGet/Set below, which redirect an ephemeral room's reads and
+// writes to this in-memory Map instead of real localStorage. That keeps the
+// existing read-after-write assumptions elsewhere in this module intact
+// (e.g. re-reading posts after a reaction/edit/delete) for the lifetime of
+// the page, while a fresh load starts this Map — and so the room — empty.
+function isEphemeralRoom(roomId: string): boolean {
+  return roomId === GLOBAL_ROOM_ID;
+}
+
+const ephemeralRoomStore = new Map<string, string>();
+
+function roomStorageGet(roomId: string, key: string): string | null {
+  return isEphemeralRoom(roomId) ? (ephemeralRoomStore.get(key) ?? null) : localStorage.getItem(key);
+}
+
+function roomStorageSet(roomId: string, key: string, value: string): void {
+  if (isEphemeralRoom(roomId)) {
+    ephemeralRoomStore.set(key, value);
+    return;
+  }
+  localStorage.setItem(key, value);
+}
+
+/** Test-only: the ephemeral store is a module-level Map, not localStorage, so tests need their own way to reset it between cases. */
+export function __clearEphemeralRoomStoreForTests(): void {
+  ephemeralRoomStore.clear();
+}
 
 export interface RoomMeta {
   id: string;
@@ -127,7 +159,7 @@ type ReactionIndex = Record<string, Reaction[]>;
 
 function loadReactionIndex(roomId: string): ReactionIndex {
   try {
-    const raw = localStorage.getItem(REACTIONS_KEY_PREFIX + roomId);
+    const raw = roomStorageGet(roomId, REACTIONS_KEY_PREFIX + roomId);
     return raw ? (JSON.parse(raw) as ReactionIndex) : {};
   } catch {
     return {};
@@ -136,7 +168,7 @@ function loadReactionIndex(roomId: string): ReactionIndex {
 
 function saveReactionIndex(roomId: string, index: ReactionIndex) {
   try {
-    localStorage.setItem(REACTIONS_KEY_PREFIX + roomId, JSON.stringify(index));
+    roomStorageSet(roomId, REACTIONS_KEY_PREFIX + roomId, JSON.stringify(index));
   } catch (error) {
     console.warn(`tc-chat: failed to persist reactions for room "${roomId}"`, error);
   }
@@ -151,7 +183,7 @@ function pendingDeletesKey(surface: PostSurface, roomId: string): string {
 
 function loadPendingDeletes(surface: PostSurface, roomId: string): PendingDeletes {
   try {
-    const raw = localStorage.getItem(pendingDeletesKey(surface, roomId));
+    const raw = roomStorageGet(roomId, pendingDeletesKey(surface, roomId));
     return raw ? (JSON.parse(raw) as PendingDeletes) : {};
   } catch {
     return {};
@@ -160,7 +192,7 @@ function loadPendingDeletes(surface: PostSurface, roomId: string): PendingDelete
 
 function savePendingDeletes(surface: PostSurface, roomId: string, pending: PendingDeletes) {
   try {
-    localStorage.setItem(pendingDeletesKey(surface, roomId), JSON.stringify(pending));
+    roomStorageSet(roomId, pendingDeletesKey(surface, roomId), JSON.stringify(pending));
   } catch (error) {
     console.warn(`tc-chat: failed to persist pending deletes for room "${roomId}"`, error);
   }
@@ -200,7 +232,7 @@ function tombstone(target: PostNode): void {
 export function loadPosts(surface: PostSurface, roomId: string): PostNode[] {
   let posts: PostNode[];
   try {
-    const raw = localStorage.getItem(POSTS_KEY_PREFIX[surface] + roomId);
+    const raw = roomStorageGet(roomId, POSTS_KEY_PREFIX[surface] + roomId);
     posts = raw ? (JSON.parse(raw) as PostNode[]) : [];
   } catch {
     posts = [];
@@ -238,7 +270,7 @@ function savePosts(surface: PostSurface, roomId: string, posts: PostNode[]) {
   // so the two never drift or double-persist.
   const bare = trimmed.map(({ reactions: _reactions, ...p }) => p);
   try {
-    localStorage.setItem(POSTS_KEY_PREFIX[surface] + roomId, JSON.stringify(bare));
+    roomStorageSet(roomId, POSTS_KEY_PREFIX[surface] + roomId, JSON.stringify(bare));
   } catch (error) {
     console.warn(`tc-chat: failed to persist posts for room "${roomId}"`, error);
   }
@@ -402,6 +434,10 @@ function loadWireLogBucket(bucket: WireLogBucket, roomId: string): SignedWire[] 
 
 /** Trims to the bucket cap and persists; returns whether the write stuck. */
 function saveWireLogBucket(bucket: WireLogBucket, roomId: string, log: SignedWire[]): boolean {
+  // Pretend the write "stuck" for an ephemeral room — there's nothing to
+  // retry, and migrateLegacyWireLog uses this to know it can drop the old
+  // (pre-ephemeral) legacy key once every bucket has "confirmed".
+  if (isEphemeralRoom(roomId)) return true;
   const trimmed =
     log.length > MAX_WIRE_LOG_PER_BUCKET ? log.slice(log.length - MAX_WIRE_LOG_PER_BUCKET) : log;
   try {
@@ -463,6 +499,30 @@ export function appendWireLog(roomId: string, wire: SignedWire): void {
   const log = loadWireLogBucket(bucket, roomId);
   if (typeof wire.id === "string" && log.some((w) => w.id === wire.id)) return;
   saveWireLogBucket(bucket, roomId, [...log, wire]);
+}
+
+/**
+ * One-time cleanup for browsers that persisted global-room content back when
+ * it wasn't ephemeral yet (see isEphemeralRoom above). Removes every real
+ * localStorage key the global room ever wrote under the old behavior, so
+ * upgrading doesn't leave stale history sitting around unread forever. Safe
+ * to call on every launch — a no-op once already clean — and never touches
+ * any other room.
+ */
+export function purgeStaleGlobalRoomStorage(): void {
+  try {
+    for (const surface of ROOM_TABS) {
+      localStorage.removeItem(POSTS_KEY_PREFIX[surface] + GLOBAL_ROOM_ID);
+      localStorage.removeItem(pendingDeletesKey(surface, GLOBAL_ROOM_ID));
+    }
+    localStorage.removeItem(REACTIONS_KEY_PREFIX + GLOBAL_ROOM_ID);
+    localStorage.removeItem(LEGACY_WIRE_LOG_KEY_PREFIX + GLOBAL_ROOM_ID);
+    for (const bucket of WIRE_LOG_BUCKETS) {
+      localStorage.removeItem(wireLogBucketKey(bucket, GLOBAL_ROOM_ID));
+    }
+  } catch (error) {
+    console.warn("tc-chat: failed to purge stale global room storage", error);
+  }
 }
 
 export function loadRooms(): RoomMeta[] {

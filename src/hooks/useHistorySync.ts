@@ -17,7 +17,7 @@ import {
   DELIVERY_RELIABLE,
 } from "../lib/mistClient";
 import { loadWireLog } from "../lib/chatStore";
-import { newId } from "../lib/util";
+import { GLOBAL_ROOM_ID, newId } from "../lib/util";
 
 interface HistoryRequest extends Record<string, unknown> {
   type: "tc-chat:history-request";
@@ -30,7 +30,11 @@ const ANSWER_THROTTLE_MS = 3000;
 
 export function useHistorySync(roomId: string | null) {
   useEffect(() => {
-    if (!roomId) return;
+    // The global room is a live-only public space (see chatStore's
+    // isEphemeralRoom): it neither asks peers for prior history nor answers
+    // others' history requests, so a visit only ever shows posts made while
+    // actually connected.
+    if (!roomId || roomId === GLOBAL_ROOM_ID) return;
     let cancelled = false;
     // The swarm topic is the raw room id itself — no derived/obscured channel
     // id, so any peer joining the same room name lands in the same swarm.
