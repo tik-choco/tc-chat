@@ -279,8 +279,6 @@ export const es: Messages = {
     roomNamePlaceholder: "Nombre visible (opcional)",
     generateRoomId: "Generar un ID aleatorio",
     join: "Unirse",
-    online: "En línea ({count})",
-    noOtherPeers: "No hay nadie más aquí",
     viewPeerProfile: "Ver el perfil de {name}",
 
     // RoomNamePanel
@@ -289,6 +287,12 @@ export const es: Messages = {
     roomNicknamePlaceholder: "{name} (nombre del perfil)",
     roomNicknameHint:
       "Este nombre se usa en los mensajes y publicaciones que envíes en esta sala y se comparte con sus miembros. Déjalo vacío para usar el nombre de tu perfil.",
+
+    editRoomIdentity: "Editar nombre e icono de la sala",
+    roomIdentityTitle: "Nombre e icono de la sala",
+    roomIdentityNameLabel: "Nombre de la sala (compartido con todos)",
+    roomIdentityHint:
+      "El nombre y el icono que definas aquí se transmiten a todos en esta sala. Deja el nombre vacío para volver a la etiqueta local de cada persona.",
 
     // VrchatGuide — sentence fragments keep the surrounding <strong>/<code>
     // markup; spaces at the fragment edges are part of the rendered text.

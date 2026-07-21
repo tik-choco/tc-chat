@@ -52,8 +52,6 @@ const ja = {
   generateRoomId: "ランダムなIDを生成",
   roomNamePlaceholder: "表示名 (任意)",
   join: "参加",
-  online: "オンライン ({count})",
-  noOtherPeers: "他に参加者はいません",
   viewPeerProfile: "{name} のプロフィールを表示",
 
   // RoomNamePanel
@@ -62,6 +60,14 @@ const ja = {
   roomNicknamePlaceholder: "{name}（プロフィールの表示名）",
   roomNicknameHint:
     "このルームで送信するメッセージ・投稿にこの名前が使われ、ルームの参加者に共有されます。空欄にするとプロフィールの表示名に戻ります。",
+
+  // RoomIdentityPanel — the room's SHARED name/icon (everyone sees the same
+  // one), as opposed to RoomNamePanel's per-person nickname override above.
+  editRoomIdentity: "ルームの名前とアイコンを編集",
+  roomIdentityTitle: "ルームの名前とアイコン",
+  roomIdentityNameLabel: "ルーム名（全員に共有）",
+  roomIdentityHint:
+    "ここで設定した名前とアイコンは、このルームの全員に共有されます。名前を空欄にすると、各自がローカルで付けた名前に戻ります。",
 
   // VrchatGuide — sentence fragments keep the surrounding <strong>/<code>
   // markup; spaces at the fragment edges are part of the rendered text.
@@ -135,8 +141,6 @@ const en: typeof ja = {
   generateRoomId: "Generate a random ID",
   roomNamePlaceholder: "Display name (optional)",
   join: "Join",
-  online: "Online ({count})",
-  noOtherPeers: "No one else is here",
   viewPeerProfile: "View {name}'s profile",
 
   // RoomNamePanel
@@ -145,6 +149,13 @@ const en: typeof ja = {
   roomNicknamePlaceholder: "{name} (profile display name)",
   roomNicknameHint:
     "This name is used for messages and posts you send in this room and is shared with its members. Leave it empty to fall back to your profile display name.",
+
+  // RoomIdentityPanel
+  editRoomIdentity: "Edit room name & icon",
+  roomIdentityTitle: "Room name & icon",
+  roomIdentityNameLabel: "Room name (shared with everyone)",
+  roomIdentityHint:
+    "The name and icon you set here are broadcast to everyone in this room. Leave the name blank to fall back to each person's own local label.",
 
   // VrchatGuide
   vrchatGuideTitle: "Watch screen shares in VRChat",

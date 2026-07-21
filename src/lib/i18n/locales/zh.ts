@@ -273,8 +273,6 @@ export const zh: Messages = {
     roomNamePlaceholder: "显示名称（可选）",
     generateRoomId: "生成随机 ID",
     join: "加入",
-    online: "在线（{count}）",
-    noOtherPeers: "暂无其他成员",
     viewPeerProfile: "查看 {name} 的资料",
 
     // RoomNamePanel
@@ -283,6 +281,12 @@ export const zh: Messages = {
     roomNicknamePlaceholder: "{name}（个人资料显示名称）",
     roomNicknameHint:
       "你在此房间发送的消息和帖子将使用这个名称，并共享给房间成员。留空则使用个人资料中的显示名称。",
+
+    editRoomIdentity: "编辑房间名称和图标",
+    roomIdentityTitle: "房间名称和图标",
+    roomIdentityNameLabel: "房间名称（对所有人可见）",
+    roomIdentityHint:
+      "在此设置的名称和图标会广播给房间中的所有人。名称留空则回退到各自本地设置的名称。",
 
     // VrchatGuide — sentence fragments keep the surrounding <strong>/<code>
     // markup; spaces at the fragment edges are part of the rendered text.
