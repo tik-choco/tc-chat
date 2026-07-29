@@ -8,6 +8,8 @@ import {
 } from "../crypto/didIdentity";
 import { appendPost, loadPosts, loadWireLog } from "../lib/chatStore";
 import type { Friend } from "../lib/friendsStore";
+import { generatePostEnc, encryptPostBytes } from "../crypto/postCipher";
+import { storage_get } from "../lib/mistClient";
 
 type EventListener = (
   eventType: number,
@@ -252,6 +254,36 @@ describe("useMessageAlerts", () => {
     );
   });
 
+  it("decrypts an encrypted-at-rest background DM body instead of storing it blank", async () => {
+    // Regression test: post bodies are encrypted-at-rest (see postCipher) and
+    // the `enc` envelope rides the wire. This hook has its own storage_get +
+    // JSON.parse path (separate from usePostStream's), which previously never
+    // decrypted — a background DM's text silently came back empty (JSON.parse
+    // on ciphertext throws, swallowed by the catch) even though the row still
+    // appeared once the room was opened.
+    const peer = await createRemotePeer();
+    const enc = generatePostEnc();
+    const cipherBytes = await encryptPostBytes(
+      enc,
+      new TextEncoder().encode(JSON.stringify({ text: "secret hello" })),
+    );
+    // handlePost fetches the body once, then snippetFor fetches it again for
+    // the notification — both calls hit the same (encrypted) cid.
+    vi.mocked(storage_get).mockResolvedValueOnce(cipherBytes).mockResolvedValueOnce(cipherBytes);
+    renderHook(() => useMessageAlerts("room-a", selfDid, [friendFixture(peer.did)]));
+
+    const wire = await signedChatPost(peer, { enc });
+    await act(async () => {
+      eventListener?.(0, "transport", wire, "dm-1");
+    });
+
+    await waitFor(() => expect(FakeNotification.instances).toHaveLength(1));
+    expect(FakeNotification.instances[0].options?.body).toBe("secret hello");
+    const stored = loadPosts("chat", "dm-1").find((p) => p.id === wire.id);
+    expect(stored?.text).toBe("secret hello");
+    expect(stored?.enc).toEqual(enc);
+  });
+
   it("raises no notification without permission", async () => {
     const peer = await createRemotePeer();
     FakeNotification.permission = "default";
@@ -365,6 +397,30 @@ describe("useMessageAlerts", () => {
     const stored = loadPosts("chat", "dm-1").find((p) => p.id === targetId);
     expect(stored?.editedAt).toBe(wire.timestamp);
     expect(loadWireLog("dm-1")).toContainEqual(expect.objectContaining({ id: wire.id }));
+  });
+
+  it("decrypts an encrypted-at-rest background-room edit", async () => {
+    const peer = await createRemotePeer();
+    const targetId = seedPost("dm-1", peer.did);
+    renderHook(() => useMessageAlerts("room-a", selfDid, [friendFixture(peer.did)]));
+
+    const enc = generatePostEnc();
+    const cipherBytes = await encryptPostBytes(
+      enc,
+      new TextEncoder().encode(JSON.stringify({ text: "edited secret" })),
+    );
+    vi.mocked(storage_get).mockResolvedValueOnce(cipherBytes);
+    const wire = await signedEditWire(peer, targetId, { enc });
+    await act(async () => {
+      eventListener?.(0, "transport", wire, "dm-1");
+    });
+
+    await waitFor(() => {
+      const stored = loadPosts("chat", "dm-1").find((p) => p.id === targetId);
+      expect(stored?.text).toBe("edited secret");
+    });
+    const stored = loadPosts("chat", "dm-1").find((p) => p.id === targetId);
+    expect(stored?.enc).toEqual(enc);
   });
 
   it("applies a self-authored delete from another device in a background room", async () => {

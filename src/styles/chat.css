@@ -533,37 +533,9 @@
   border: 1px solid var(--border);
 }
 
-/* ---- Grouped corner flattening ----
-   Bubbles default to a fully rounded 18px pill. Where a bubble sits flush
-   against another bubble from the same sender (first/middle/last of a
-   grouped run), flatten the corner(s) on that seam to 6px so the run reads
-   as one continuous shape rather than a stack of separate pills. Singles
-   keep all four corners rounded. */
-.bubble-row--first .bubble--other {
-  border-bottom-left-radius: 6px;
-}
-
-.bubble-row--middle .bubble--other {
-  border-top-left-radius: 6px;
-  border-bottom-left-radius: 6px;
-}
-
-.bubble-row--last .bubble--other {
-  border-top-left-radius: 6px;
-}
-
-.bubble-row--first.bubble-row--own .bubble--own {
-  border-bottom-right-radius: 6px;
-}
-
-.bubble-row--middle.bubble-row--own .bubble--own {
-  border-top-right-radius: 6px;
-  border-bottom-right-radius: 6px;
-}
-
-.bubble-row--last.bubble-row--own .bubble--own {
-  border-top-right-radius: 6px;
-}
+/* Every bubble keeps the same fully rounded 18px pill, grouped or not — the
+   run reads as one sender through the avatar gap and spacing alone, without
+   flattening the corners on the seam into a point. */
 
 /* The name now sits above the bubble, on the page background, so it no
    longer needs the opacity trick that used to fake contrast against the

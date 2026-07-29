@@ -1,4 +1,4 @@
-import type { ComponentProps } from "preact";
+import type { ComponentChildren, ComponentProps } from "preact";
 import { Menu, MessageCircle, LayoutList, CalendarDays, Images } from "lucide-preact";
 import { ChatWindow } from "./ChatWindow";
 import { ProjectBoard } from "./ProjectBoard";
@@ -16,6 +16,8 @@ export function RoomContent(props: {
   onChangeTab: (tab: RoomTab) => void;
   /** Mobile only: opens the off-canvas sidebar drawer. */
   onOpenSidebar: () => void;
+  /** Room-level notice shown under the tab bar on every tab (see JoinRoomBanner). */
+  banner?: ComponentChildren;
   chatWindowProps: ComponentProps<typeof ChatWindow>;
   boardProps: ComponentProps<typeof ProjectBoard>;
   calendarProps: ComponentProps<typeof CalendarView>;
@@ -25,6 +27,7 @@ export function RoomContent(props: {
     tab,
     onChangeTab,
     onOpenSidebar,
+    banner,
     chatWindowProps,
     boardProps,
     calendarProps,
@@ -75,6 +78,7 @@ export function RoomContent(props: {
           {t("chat.galleryTab")}
         </button>
       </div>
+      {banner}
       <div class="room-content-body">
         {tab === "chat" ? (
           <ChatWindow {...chatWindowProps} />

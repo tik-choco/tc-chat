@@ -13,8 +13,10 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@tik-choco/mistlib": "0.6.0",
     "lucide-preact": "^0.577.0",
-    "preact": "^10.29.3"
+    "preact": "^10.29.3",
+    "qrcode-generator": "^2.0.4"
   },
   "devDependencies": {
     "@preact/preset-vite": "^2.10.5",

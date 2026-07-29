@@ -28,6 +28,8 @@ import { Onboarding } from "./components/Onboarding";
 import { PersonalCalendarPanel } from "./components/PersonalCalendarPanel";
 import { RoomNamePanel } from "./components/RoomNamePanel";
 import { RoomIdentityPanel } from "./components/RoomIdentityPanel";
+import { RoomInvitePanel } from "./components/RoomInvitePanel";
+import { JoinRoomBanner } from "./components/JoinRoomBanner";
 import { useRooms } from "./hooks/useRooms";
 import { useFriends } from "./hooks/useFriends";
 import { useChatRoom } from "./hooks/useChatRoom";
@@ -63,6 +65,7 @@ import { getNode, createMistStorageBackend } from "./lib/mistClient";
 import { identityFor } from "./lib/profileDirectory";
 import { ensureDidIdentity, ensureSharedDidIdentity } from "./crypto/didIdentity";
 import { GLOBAL_ROOM_ID, hashForLocation, locationFromHash, type AppLocation } from "./lib/util";
+import { MAX_INVITE_NAME } from "./lib/roomInvite";
 import {
   shouldShowOnboarding,
   markOnboardingDone,
@@ -102,6 +105,16 @@ export function App() {
   const [personalCalendarOpen, setPersonalCalendarOpen] = useState(false);
   const [roomNameOpen, setRoomNameOpen] = useState(false);
   const [roomIdentityOpen, setRoomIdentityOpen] = useState(false);
+  // Which room's invite share sheet is open (any room in the list, not just the
+  // active one — the sidebar can invite to a room without switching to it).
+  const [inviteRoomId, setInviteRoomId] = useState<string | null>(null);
+  // The label an invite link carried for a room we haven't added yet (see the
+  // "?name=" effect below) — used by the join banner and, until the room is
+  // added, as its on-screen name.
+  const [pendingInvite, setPendingInvite] = useState<{ roomId: string; name: string } | null>(null);
+  // Rooms whose join banner was dismissed this session; deliberately not
+  // persisted, so the offer comes back next time the room is opened.
+  const [joinDismissed, setJoinDismissed] = useState<string[]>([]);
 
   // The global room became ephemeral (see chatStore's isEphemeralRoom) —
   // one-time sweep of whatever it persisted to this browser back when it
@@ -240,12 +253,14 @@ export function App() {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
-  // A "?name=<label>" query param — used by cross-app hand-off links (e.g. a
-  // sibling app's "open our party's chat room" button) — seeds this room's
-  // sidebar name on first visit instead of leaving it as a raw id. Consumed
-  // once and stripped from the URL; an already-known room (one the user has
-  // named themselves, or visited before) is left untouched, and the global
-  // room can never be renamed this way.
+  // A "?name=<label>" query param — carried by invite links (see roomInvite.ts)
+  // and by cross-app hand-off links (e.g. a sibling app's "open our party's chat
+  // room" button) — is the inviter's label for the room in the hash. Consumed
+  // once and stripped from the URL. It does NOT add the room to the room list
+  // on its own: the JoinRoomBanner below asks first, so following a link never
+  // silently grows someone's sidebar. An already-known room (named by the user,
+  // or visited before) keeps its own label, and the global room is never
+  // relabelled this way.
   useEffect(() => {
     if (!username) return;
     const params = new URLSearchParams(window.location.search);
@@ -253,7 +268,7 @@ export function App() {
     if (!name) return;
     window.history.replaceState(null, "", window.location.pathname + window.location.hash);
     if (activeRoomId !== GLOBAL_ROOM_ID && !rooms.some((r) => r.id === activeRoomId)) {
-      joinRoom(activeRoomId, name.trim().slice(0, 60));
+      setPendingInvite({ roomId: activeRoomId, name: name.trim().slice(0, MAX_INVITE_NAME) });
     }
   }, [username]);
 
@@ -332,14 +347,35 @@ export function App() {
   // friends have a live DM — pending requests don't get a channel yet.
   const activeFriend = friends.find((f) => f.roomId === activeRoomId && f.status === "accepted");
   const isDm = activeFriend !== undefined;
+  // The label an invite link supplied for this room, until it's added to the
+  // room list (at which point the list's own label takes over).
+  const invitedName = pendingInvite?.roomId === activeRoomId ? pendingInvite.name : null;
   // The shared name (set by any peer, synced via useRoomMeta) wins over this
   // peer's own local room label; DMs and the global room never have one.
   const roomName =
     (!isDm && sharedRoomMeta?.name) ||
     activeRoom?.name ||
+    invitedName ||
     (activeFriend ? identityFor(directory, activeFriend.did, activeFriend.name).name : undefined) ||
     activeRoomId;
   const canEditRoomIdentity = status === "joined" && activeRoomId !== GLOBAL_ROOM_ID && !isDm;
+  const canInvite = activeRoomId !== GLOBAL_ROOM_ID && !isDm;
+  // A room reached by link (invite or plain deep link) is fully usable without
+  // being in the room list — the swarm join follows the URL — so the only thing
+  // missing is a way back to it later. Offer to add it rather than doing it
+  // silently; DMs and the global room are always reachable, so they never ask.
+  const showJoinBanner =
+    activeRoomId !== GLOBAL_ROOM_ID &&
+    !isDm &&
+    !activeRoom &&
+    !joinDismissed.includes(activeRoomId);
+
+  function handleJoinActiveRoom() {
+    joinRoom(activeRoomId, roomName);
+    setPendingInvite((cur) => (cur?.roomId === activeRoomId ? null : cur));
+  }
+
+  const inviteRoomMeta = inviteRoomId ? sharedRoomMetaFor(inviteRoomId) : undefined;
 
   return (
     <div class="app-shell">
@@ -367,6 +403,10 @@ export function App() {
         onSelectRoom={handleSelectRoom}
         onJoinRoom={(id, name) => joinRoom(id, name)}
         onLeaveRoom={handleLeaveRoom}
+        onInviteToRoom={(id) => {
+          setInviteRoomId(id);
+          setSidebarOpen(false);
+        }}
         peers={peers}
         onOpenPeerProfile={(did, name) => setPeerProfile({ did, name })}
         friends={friends}
@@ -389,6 +429,16 @@ export function App() {
         tab={roomTab}
         onChangeTab={setRoomTab}
         onOpenSidebar={() => setSidebarOpen(true)}
+        banner={
+          showJoinBanner ? (
+            <JoinRoomBanner
+              roomName={roomName}
+              invited={invitedName !== null}
+              onJoin={handleJoinActiveRoom}
+              onDismiss={() => setJoinDismissed((ids) => [...ids, activeRoomId])}
+            />
+          ) : null
+        }
         chatWindowProps={{
           roomId: activeRoomId,
           roomName,
@@ -412,6 +462,7 @@ export function App() {
           onOpenProfile: (did, name) => setPeerProfile({ did, name }),
           onEditSelfRoomName: () => setRoomNameOpen(true),
           onEditRoomIdentity: canEditRoomIdentity ? () => setRoomIdentityOpen(true) : undefined,
+          onInvite: canInvite ? () => setInviteRoomId(activeRoomId) : undefined,
           voice,
           screenShare,
           videoCall,
@@ -509,6 +560,22 @@ export function App() {
           currentIconCid={sharedRoomMeta?.iconCid}
           onSave={setRoomMeta}
           onClose={() => setRoomIdentityOpen(false)}
+        />
+      )}
+
+      {inviteRoomId && (
+        <RoomInvitePanel
+          roomId={inviteRoomId}
+          roomName={
+            inviteRoomMeta?.name ||
+            rooms.find((r) => r.id === inviteRoomId)?.name ||
+            inviteRoomId
+          }
+          roomIconCid={inviteRoomMeta?.iconCid}
+          selfName={displayName}
+          friends={friends}
+          directoryFor={directoryFor}
+          onClose={() => setInviteRoomId(null)}
         />
       )}
 

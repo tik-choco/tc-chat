@@ -252,6 +252,7 @@
   opacity: 0.75;
 }
 
+.room-invite,
 .room-copy,
 .room-leave {
   display: grid;
@@ -268,9 +269,14 @@
   line-height: 1;
 }
 
+.room-invite:hover,
 .room-copy:hover {
   background: var(--surface-2);
   color: var(--text);
+}
+
+.room-invite:hover {
+  color: var(--primary);
 }
 
 .room-copy--copied {

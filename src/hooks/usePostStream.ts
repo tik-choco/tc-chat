@@ -26,6 +26,7 @@ import {
   applyPostEdit,
   applyReaction,
   loadPosts,
+  loadWireLog,
   type PostNode,
   type PostSurface,
   type PostKind,
@@ -341,6 +342,42 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
       }
     }
 
+    /**
+     * Re-hydrates posts already stored without renderable content, from this
+     * room's own signed wire log.
+     *
+     * A post lands incomplete when a receive path logged the wire but couldn't
+     * read its body. The case this exists for: useMessageAlerts stores posts
+     * for rooms that aren't on screen, and for a while it fetched the body
+     * without decrypting it (bodies are encrypted at rest — see postCipher),
+     * so background DMs were saved as a sender + timestamp with an empty body
+     * and no `enc` key. Dedup-by-id then kept them empty forever.
+     *
+     * The wire log is written before the body is read, so it still holds the
+     * original wire — including the `enc` key — and the repair is local except
+     * for re-fetching the ciphertext. Nothing to repair is the common case and
+     * costs one localStorage read; a body that still won't fetch is left alone
+     * and retried the next time the room is opened.
+     */
+    async function repairIncompletePosts() {
+      const byId = new Map(loadPosts(surface, roomId!).map((p) => [p.id, p]));
+      const stale = loadWireLog(roomId!).filter((w): w is PostWire => {
+        if (w.type !== "tc-chat:post" || (w as PostWire).surface !== surface) return false;
+        const stored = typeof w.id === "string" ? byId.get(w.id) : undefined;
+        if (!stored || stored.deleted) return false;
+        // Encrypted body stored without the key that opens it...
+        if ((w as PostWire).enc !== undefined && stored.enc === undefined) return true;
+        // ...or a structured body that never made it in at all.
+        return structuredKind(stored.kind) && stored.text === undefined && stored.title === undefined;
+      });
+      // Sequential on purpose: each one may hit the swarm, and a room opened
+      // after a long absence can have a lot of them.
+      for (const wire of stale) {
+        if (cancelled) return;
+        await hydratePost(wire);
+      }
+    }
+
     const unsubscribe = subscribeEvent((eventType, _fromId, payload, evtRoomId) => {
       if (!isRawEvent(eventType)) return;
       if (evtRoomId && evtRoomId !== channelId) return; // not this room's traffic
@@ -366,6 +403,8 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
         hydratePostDelete(decoded as PostDeleteWire);
       }
     });
+
+    void repairIncompletePosts();
 
     return () => {
       cancelled = true;

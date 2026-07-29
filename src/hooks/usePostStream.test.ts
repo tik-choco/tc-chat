@@ -3,6 +3,7 @@ import { renderHook, act, waitFor } from "@testing-library/preact";
 import { usePostStream } from "./usePostStream";
 import { createDidIdentity, signStringWithDidIdentity } from "../crypto/didIdentity";
 import { decryptPostBytes, encryptPostBytes, generatePostEnc, isPostEnc } from "../crypto/postCipher";
+import { appendPost, appendWireLog, loadPosts } from "../lib/chatStore";
 
 type EventListener = (
   eventType: number,
@@ -946,5 +947,141 @@ describe("usePostStream", () => {
     await waitFor(() => expect(result.current.nodes).toHaveLength(1));
     expect(result.current.nodes[0].deleted).toBeFalsy();
     expect(result.current.nodes[0].text).toBe("mine");
+  });
+
+  // Regression: useMessageAlerts stores posts for rooms that aren't on screen,
+  // and for a while it fetched bodies without decrypting them — background DMs
+  // were persisted as a sender + timestamp with an empty body and no enc key,
+  // and dedup-by-id then kept them empty forever. Opening the room must heal
+  // them from the wire log, which still holds the original wire + enc.
+  it("repairs a post stored without its body/enc key from the room's wire log on mount", async () => {
+    const author = await createRemotePeer();
+    const enc = generatePostEnc();
+    const cipherBytes = await encryptPostBytes(
+      enc,
+      new TextEncoder().encode(JSON.stringify({ text: "the missing body" })),
+    );
+    storedBytes = cipherBytes;
+
+    const unsigned = {
+      type: "tc-chat:post",
+      surface: "chat",
+      id: "broken-1",
+      parentId: null,
+      fromId: author.did,
+      fromName: "Bob",
+      timestamp: 111,
+      kind: "text",
+      cid: "cid-broken",
+      enc,
+    };
+    const wire = { ...unsigned, signature: await author.sign(unsigned) };
+    // Exactly the state the old useMessageAlerts left behind: the full signed
+    // wire logged, but the post itself saved bodyless and keyless.
+    appendWireLog("room-1", wire);
+    appendPost({
+      id: "broken-1",
+      roomId: "room-1",
+      surface: "chat",
+      parentId: null,
+      fromId: author.did,
+      fromName: "Bob",
+      timestamp: 111,
+      kind: "text",
+      cid: "cid-broken",
+      reactions: [],
+    });
+    expect(loadPosts("chat", "room-1")[0].text).toBeUndefined();
+
+    const { result } = renderHook(() => usePostStream("room-1", "chat", "Alice"));
+
+    await waitFor(() => expect(result.current.nodes[0]?.text).toBe("the missing body"));
+    expect(result.current.nodes).toHaveLength(1);
+    expect(result.current.nodes[0].enc).toEqual(enc);
+    // Healed in storage too, not just in this render's state.
+    expect(loadPosts("chat", "room-1")[0].text).toBe("the missing body");
+  });
+
+  it("leaves a healthy post untouched on mount (no needless swarm refetch)", async () => {
+    const author = await createRemotePeer();
+    const enc = generatePostEnc();
+    const unsigned = {
+      type: "tc-chat:post",
+      surface: "chat",
+      id: "fine-1",
+      parentId: null,
+      fromId: author.did,
+      fromName: "Bob",
+      timestamp: 111,
+      kind: "text",
+      cid: "cid-fine",
+      enc,
+    };
+    appendWireLog("room-1", { ...unsigned, signature: await author.sign(unsigned) });
+    appendPost({
+      id: "fine-1",
+      roomId: "room-1",
+      surface: "chat",
+      parentId: null,
+      fromId: author.did,
+      fromName: "Bob",
+      timestamp: 111,
+      kind: "text",
+      cid: "cid-fine",
+      enc,
+      text: "already here",
+      reactions: [],
+    });
+
+    const { result } = renderHook(() => usePostStream("room-1", "chat", "Alice"));
+    await new Promise((r) => setTimeout(r, 30));
+
+    expect(result.current.nodes[0].text).toBe("already here");
+    const { storage_get } = await import("../lib/mistClient");
+    expect(vi.mocked(storage_get)).not.toHaveBeenCalled();
+  });
+
+  it("a repair wire from a different author cannot overwrite the stored post", async () => {
+    const author = await createRemotePeer();
+    const attacker = await createRemotePeer();
+    const enc = generatePostEnc();
+    storedBytes = await encryptPostBytes(
+      enc,
+      new TextEncoder().encode(JSON.stringify({ text: "injected" })),
+    );
+
+    // Validly signed over the attacker's OWN did, but naming a post id whose
+    // stored copy belongs to someone else.
+    const unsigned = {
+      type: "tc-chat:post",
+      surface: "chat",
+      id: "broken-2",
+      parentId: null,
+      fromId: attacker.did,
+      fromName: "Eve",
+      timestamp: 111,
+      kind: "text",
+      cid: "cid-broken-2",
+      enc,
+    };
+    appendWireLog("room-1", { ...unsigned, signature: await attacker.sign(unsigned) });
+    appendPost({
+      id: "broken-2",
+      roomId: "room-1",
+      surface: "chat",
+      parentId: null,
+      fromId: author.did,
+      fromName: "Bob",
+      timestamp: 111,
+      kind: "text",
+      cid: "cid-broken-2",
+      reactions: [],
+    });
+
+    const { result } = renderHook(() => usePostStream("room-1", "chat", "Alice"));
+    await new Promise((r) => setTimeout(r, 30));
+
+    expect(result.current.nodes[0].text).toBeUndefined();
+    expect(result.current.nodes[0].fromId).toBe(author.did);
   });
 });

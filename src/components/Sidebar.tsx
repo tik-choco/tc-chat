@@ -12,6 +12,7 @@ import {
   Check,
   Plus,
   User,
+  UserPlus,
   CalendarPlus,
   RefreshCw,
 } from "lucide-preact";
@@ -45,6 +46,8 @@ export function Sidebar(props: {
   onSelectRoom: (id: string) => void;
   onJoinRoom: (id: string, name: string) => void;
   onLeaveRoom: (id: string) => void;
+  /** Opens the invite share sheet for a room (see RoomInvitePanel). */
+  onInviteToRoom: (id: string) => void;
   peers: Peer[];
   /** Open a peer's read-only profile card (needs their DID, from presence). */
   onOpenPeerProfile: (did: string, fallbackName: string) => void;
@@ -73,6 +76,7 @@ export function Sidebar(props: {
     onSelectRoom,
     onJoinRoom,
     onLeaveRoom,
+    onInviteToRoom,
     peers,
     onOpenPeerProfile,
     friends,
@@ -251,6 +255,20 @@ export function Sidebar(props: {
                     <span class="unread-badge">{unread[room.id]}</span>
                   )}
                 </button>
+                {room.id !== GLOBAL_ROOM_ID && (
+                  <button
+                    type="button"
+                    class="room-invite"
+                    title={t("invite.inviteAction")}
+                    aria-label={t("invite.inviteAction")}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onInviteToRoom(room.id);
+                    }}
+                  >
+                    <UserPlus size={14} />
+                  </button>
+                )}
                 {room.id !== GLOBAL_ROOM_ID && (
                   <button
                     type="button"
