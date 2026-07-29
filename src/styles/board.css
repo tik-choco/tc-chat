@@ -43,6 +43,54 @@
   display: flex;
 }
 
+/* Offer to add a room reached by an invite/deep link to the room list. Sits
+   between the tab bar and the tab body, so it shows on every tab. */
+.join-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 1.25rem;
+  border-bottom: 1px solid var(--primary-border);
+  background: var(--primary-soft);
+  color: var(--text);
+  font-size: 0.88rem;
+}
+
+.join-banner-icon {
+  flex: none;
+  color: var(--primary);
+}
+
+.join-banner-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.join-banner-join {
+  flex: none;
+}
+
+.join-banner-dismiss {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border: none;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+}
+
+.join-banner-dismiss:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
 /* ---- Board shell ---- */
 .board {
   display: flex;

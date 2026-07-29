@@ -276,9 +276,51 @@ function savePosts(surface: PostSurface, roomId: string, posts: PostNode[]) {
   }
 }
 
+/**
+ * Whether `incoming` is a strictly better copy of an already-stored post, i.e.
+ * the stored one can't render its content and this one can.
+ *
+ * A post lands incomplete when the receive path held the wire but couldn't read
+ * its body — an unreachable cid, or (the case this exists for) an encrypted
+ * body stored without the `enc` content key that opens it. The shell is saved,
+ * so the row shows a sender and a timestamp with nothing in it, and normal
+ * dedup-by-id would keep it that way forever.
+ *
+ * Guarded narrowly, because this is the one path that overwrites stored
+ * content: same author (a peer must not inject a body into someone else's
+ * post), same cid (a different cid is different content, not a repair — an
+ * edit goes through applyPostEdit), and never a tombstone (a delete stays a
+ * delete).
+ */
+function isRepairUpgrade(existing: PostNode, incoming: PostNode): boolean {
+  if (existing.deleted) return false;
+  if (existing.fromId !== incoming.fromId) return false;
+  if (existing.cid !== incoming.cid) return false;
+  // Encrypted body stored without the key that decrypts it.
+  if (existing.enc === undefined && incoming.enc !== undefined) return true;
+  // Structured body that never made it in at all.
+  const structured =
+    incoming.kind === "text" || incoming.kind === "project" || incoming.kind === "event";
+  return (
+    structured &&
+    existing.text === undefined &&
+    existing.title === undefined &&
+    (incoming.text !== undefined || incoming.title !== undefined)
+  );
+}
+
 export function appendPost(node: PostNode): PostNode[] {
   const posts = loadPosts(node.surface, node.roomId);
-  if (posts.some((p) => p.id === node.id)) return posts;
+  const existingIndex = posts.findIndex((p) => p.id === node.id);
+  if (existingIndex !== -1) {
+    // Already known — keep it, unless this copy can render content the stored
+    // one couldn't (see isRepairUpgrade).
+    if (!isRepairUpgrade(posts[existingIndex], node)) return posts;
+    const repaired = [...posts];
+    repaired[existingIndex] = { ...node, reactions: posts[existingIndex].reactions };
+    savePosts(node.surface, node.roomId, repaired);
+    return repaired;
+  }
   // A delete for this id may have already landed while this post was still
   // hydrating; consume the pending entry either way so it can't pile up.
   const pending = loadPendingDeletes(node.surface, node.roomId);

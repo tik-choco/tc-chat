@@ -8,6 +8,7 @@ import { devConsole } from "./catalog/devConsole";
 import { onboarding } from "./catalog/onboarding";
 import { friends } from "./catalog/friends";
 import { calendar } from "./catalog/calendar";
+import { invite } from "./catalog/invite";
 
 /**
  * The full message tree, assembled from the per-domain catalogs. `ja` is the
@@ -26,6 +27,7 @@ export const ja = {
   onboarding: onboarding.ja,
   friends: friends.ja,
   calendar: calendar.ja,
+  invite: invite.ja,
 };
 
 export const en: Messages = {
@@ -39,6 +41,7 @@ export const en: Messages = {
   onboarding: onboarding.en,
   friends: friends.en,
   calendar: calendar.en,
+  invite: invite.en,
 };
 
 export type Messages = typeof ja;

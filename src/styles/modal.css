@@ -536,3 +536,119 @@
   outline: none;
   box-shadow: 0 0 0 3px var(--danger-soft);
 }
+
+/* ---- Room invite share sheet (RoomInvitePanel) ---- */
+.invite-panel {
+  max-width: 460px;
+}
+
+.invite-room {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: var(--space-4);
+}
+
+.invite-room-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.invite-link-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.invite-link-row input {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.82rem;
+}
+
+.invite-link-row .pill-btn {
+  flex: none;
+}
+
+.invite-qr {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin: var(--space-4) 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+}
+
+/* Always light-on-dark-modules, whatever the app theme — scanners depend on
+   that polarity, so the code carries its own white quiet zone. */
+.qr-code {
+  flex: none;
+  border-radius: var(--radius-s);
+  background: #fff;
+}
+
+.invite-qr-meta {
+  min-width: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.invite-qr-meta strong {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: var(--text);
+}
+
+.invite-qr-meta p {
+  margin: 0;
+}
+
+.invite-friends h3 {
+  margin: 0 0 var(--space-2);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.invite-empty {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-subtle);
+}
+
+.invite-friend-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.invite-friend-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+}
+
+.invite-friend-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9rem;
+}
+
+.invite-send-error {
+  flex: none;
+  font-size: 0.75rem;
+  color: var(--danger-text);
+}

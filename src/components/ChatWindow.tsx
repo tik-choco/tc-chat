@@ -3,7 +3,7 @@ import type { ChatMessage, ChatDisplay } from "../lib/chatStore";
 import type { ProfileDirectory } from "../lib/profileDirectory";
 import type { Peer } from "../hooks/usePresence";
 import type { TcStorageFileEntry } from "../interop/tcStorageFiles";
-import { Hash, Globe, User, AlertTriangle, Pencil } from "lucide-preact";
+import { Hash, Globe, User, UserPlus, AlertTriangle, Pencil } from "lucide-preact";
 import { Avatar } from "./Avatar";
 import { MessageBubble, groupPosAt } from "./MessageBubble";
 import { MessageInput } from "./MessageInput";
@@ -49,6 +49,8 @@ export function ChatWindow(props: {
   onEditSelfRoomName: () => void;
   /** Open the SHARED room name/icon editor — omitted for rooms that can't have one (global, DMs). */
   onEditRoomIdentity?: () => void;
+  /** Open this room's invite share sheet — omitted where an invite makes no sense (global, DMs). */
+  onInvite?: () => void;
   voice: ReturnType<typeof useVoiceChat>;
   screenShare: ReturnType<typeof useScreenShare>;
   videoCall: ReturnType<typeof useVideoCall>;
@@ -76,6 +78,7 @@ export function ChatWindow(props: {
     onOpenProfile,
     onEditSelfRoomName,
     onEditRoomIdentity,
+    onInvite,
     voice,
     screenShare,
     videoCall,
@@ -183,6 +186,18 @@ export function ChatWindow(props: {
           )}
         </div>
         <div class="topbar-actions">
+          {onInvite && (
+            <button
+              type="button"
+              class="pill-btn pill-btn--ghost"
+              title={t("invite.inviteAction")}
+              aria-label={t("invite.inviteAction")}
+              onClick={onInvite}
+            >
+              <UserPlus size={14} />
+              <span class="btn-label">{t("invite.title")}</span>
+            </button>
+          )}
           <button
             type="button"
             class="pill-btn pill-btn--ghost room-nickname-btn"

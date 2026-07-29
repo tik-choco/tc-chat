@@ -32,6 +32,7 @@ import {
 import type { Friend } from "../lib/friendsStore";
 import { getLocale, translate } from "../lib/i18n";
 import { hashForRoomId } from "../lib/util";
+import { decryptPostBytes, isPostEnc, type PostEnc } from "../crypto/postCipher";
 
 interface ChatPostWire extends Record<string, unknown> {
   type: "tc-chat:post";
@@ -43,6 +44,8 @@ interface ChatPostWire extends Record<string, unknown> {
   timestamp: number;
   kind: PostKind;
   cid: string;
+  /** Content-key envelope for the encrypted body at `cid` (see postCipher). Absent = legacy plaintext CID. */
+  enc?: PostEnc;
   mimeType?: string;
   fileName?: string;
   fileSize?: number;
@@ -59,6 +62,8 @@ interface ChatPostEditWire extends Record<string, unknown> {
   surface: PostSurface;
   targetId: string;
   cid: string;
+  /** Content-key envelope for the encrypted body at `cid` (see postCipher). Absent = legacy plaintext CID. */
+  enc?: PostEnc;
   fromId: string;
   fromName: string;
   timestamp: number;
@@ -86,11 +91,14 @@ function currentPermission(): NotifPermission {
 async function snippetFor(wire: ChatPostWire): Promise<string> {
   if (wire.kind === "text") {
     try {
-      const bytes = await storage_get(wire.cid);
-      const body = JSON.parse(new TextDecoder().decode(bytes)) as { text?: string };
+      const raw = await storage_get(wire.cid);
+      // Bodies are encrypted-at-rest when the wire carries an `enc` envelope
+      // (see postCipher) — legacy wires without one are still plaintext.
+      const plain = wire.enc && isPostEnc(wire.enc) ? await decryptPostBytes(wire.enc, raw) : raw;
+      const body = JSON.parse(new TextDecoder().decode(plain)) as { text?: string };
       if (body.text) return body.text.slice(0, 120);
     } catch {
-      // Body not fetchable yet — fall through to the generic label.
+      // Body not fetchable/decryptable yet — fall through to the generic label.
     }
   }
   if (wire.fileName) return wire.fileName;
@@ -165,17 +173,28 @@ export function useMessageAlerts(
       // storing here too is safe — appendPost dedups by id).
       if (!isActive) {
         appendWireLog(roomId, wire);
+        // wire.enc is untrusted input off the wire — validate its shape
+        // before ever handing it to the cipher (same rule as usePostStream).
+        // A malformed enc is treated like any other body-fetch failure below.
+        let enc: PostEnc | undefined;
+        if (wire.enc !== undefined) {
+          if (isPostEnc(wire.enc)) enc = wire.enc;
+          else console.warn("discarding post with malformed enc", wire.id);
+        }
         let text: string | undefined;
         if (wire.kind === "text" || wire.kind === "project" || wire.kind === "event") {
           try {
-            const bytes = await storage_get(wire.cid);
-            const body = JSON.parse(new TextDecoder().decode(bytes)) as {
+            const raw = await storage_get(wire.cid);
+            // Legacy wires (no enc) are still plaintext CIDs; new wires carry
+            // an encrypted blob keyed by the wire's enc envelope.
+            const plain = enc ? await decryptPostBytes(enc, raw) : raw;
+            const body = JSON.parse(new TextDecoder().decode(plain)) as {
               text?: string;
               title?: string;
             };
             text = body.text;
           } catch {
-            // Body unfetchable right now; store the post shell anyway.
+            // Body unfetchable/undecryptable right now; store the post shell anyway.
           }
           if (cancelled) return;
         }
@@ -189,6 +208,7 @@ export function useMessageAlerts(
           timestamp: wire.timestamp,
           kind: wire.kind,
           cid: wire.cid,
+          enc,
           text,
           mimeType: wire.mimeType,
           fileName: wire.fileName,
@@ -226,18 +246,28 @@ export function useMessageAlerts(
       if (cancelled || seen.has(wire.id)) return;
       seen.add(wire.id);
       appendWireLog(roomId, wire);
+      let enc: PostEnc | undefined;
+      if (wire.enc !== undefined) {
+        if (isPostEnc(wire.enc)) enc = wire.enc;
+        else {
+          console.warn("discarding post edit with malformed enc", wire.id);
+          return;
+        }
+      }
       let body: { text?: string; title?: string; startsAt?: number; endsAt?: number; location?: string };
       try {
-        const bytes = await storage_get(wire.cid);
-        body = JSON.parse(new TextDecoder().decode(bytes)) as typeof body;
+        const raw = await storage_get(wire.cid);
+        const plain = enc ? await decryptPostBytes(enc, raw) : raw;
+        body = JSON.parse(new TextDecoder().decode(plain)) as typeof body;
       } catch {
-        // Body not fetchable yet — the wire log entry above keeps this
-        // replayable, so just skip applying it for now.
+        // Body not fetchable/decryptable yet — the wire log entry above keeps
+        // this replayable, so just skip applying it for now.
         return;
       }
       if (cancelled) return;
       applyPostEdit("chat", roomId, wire.targetId, wire.fromId, {
         cid: wire.cid,
+        enc,
         text: body.text,
         title: body.title,
         editedAt: wire.timestamp,
