@@ -1,0 +1,350 @@
+/* ============================================================
+   Personal notes space (PersonalChat).
+
+   Deliberately NOT styled as a chat log: every note has the same
+   author, so there is no own/other alignment, no avatars and no
+   grouping — a single column of cards reads better and makes the
+   space feel distinct from a real, shared room at a glance.
+
+   Reused from chat.css (imported globally by app.tsx): .date-divider,
+   .media-maximize-btn, .file-input, .icon-btn, .send-btn.
+   ============================================================ */
+
+.personal-chat {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.personal-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+
+.personal-header-mark {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-s);
+  background: linear-gradient(135deg, var(--primary), var(--primary-active));
+  color: var(--on-primary);
+  box-shadow: var(--shadow-1);
+  flex-shrink: 0;
+}
+
+.personal-header-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.personal-title {
+  font-weight: 700;
+  font-size: 0.98rem;
+  color: var(--text);
+}
+
+/* The "this device only" reassurance. Kept visible at all times rather
+   than tucked into a tooltip — it's the reason the space exists. */
+.personal-subtitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.personal-error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.55rem var(--space-4);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 0.82rem;
+  flex-shrink: 0;
+}
+
+.personal-error span {
+  flex: 1;
+}
+
+.personal-error-close {
+  display: inline-grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0.15rem;
+  border-radius: var(--radius-s);
+}
+
+.personal-error-close:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.personal-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.personal-empty {
+  margin: auto;
+  max-width: 32ch;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.personal-empty-title {
+  font-size: 0.9rem;
+  margin: 0 0 var(--space-3);
+}
+
+.personal-empty-note {
+  font-size: 0.78rem;
+  line-height: 1.6;
+  margin: 0;
+  opacity: 0.85;
+}
+
+/* --- One note ---------------------------------------------------- */
+
+.note-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.note-body {
+  font-size: 0.9rem;
+  line-height: 1.65;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* Markdown blocks bring their own margins; collapse the outer ones so a
+   one-line note doesn't sit in a tall, mostly empty card. */
+.note-body > :first-child {
+  margin-top: 0;
+}
+
+.note-body > :last-child {
+  margin-bottom: 0;
+}
+
+.note-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.note-edited {
+  font-style: italic;
+  opacity: 0.8;
+}
+
+.note-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 0.15rem;
+  /* Revealed on hover/focus so a wall of notes stays calm; always visible
+     on touch, where there is no hover to reveal them (see the coarse-
+     pointer rule at the bottom). */
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+
+.note-card:hover .note-actions,
+.note-card:focus-within .note-actions {
+  opacity: 1;
+}
+
+.note-action {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.note-action:hover {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.note-action--danger:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+/* --- Inline editor ----------------------------------------------- */
+
+.note-edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.note-edit-input {
+  width: 100%;
+  resize: vertical;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.note-edit-input:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.note-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+/* --- Attachments -------------------------------------------------- */
+
+.note-media-zoom {
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: zoom-in;
+  display: block;
+  max-width: 100%;
+}
+
+.note-image,
+.note-video {
+  display: block;
+  max-width: 100%;
+  max-height: 340px;
+  border-radius: var(--radius-s);
+}
+
+.note-media-frame {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+/* .media-maximize-btn (chat.css) only fades in for the chat/screen-share
+   frames it was written for — this adds the personal frame to that set. */
+.note-media-frame:hover .media-maximize-btn,
+.note-media-frame:focus-within .media-maximize-btn {
+  opacity: 1;
+}
+
+.note-audio {
+  width: 100%;
+}
+
+.note-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.83rem;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.note-file:hover {
+  border-color: var(--primary);
+}
+
+.note-attach-loading,
+.note-attach-error {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.note-attach-error {
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  color: var(--danger);
+}
+
+/* --- Composer ----------------------------------------------------- */
+
+.personal-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+  padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
+}
+
+.personal-input {
+  flex: 1;
+  min-height: 2.4rem;
+  max-height: 9rem;
+  resize: vertical;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.personal-input:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.personal-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Touch devices have no hover, so the per-note actions would otherwise be
+   permanently invisible. */
+@media (hover: none), (pointer: coarse) {
+  .note-actions {
+    opacity: 1;
+  }
+}

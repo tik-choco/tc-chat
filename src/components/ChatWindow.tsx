@@ -40,15 +40,19 @@ function isSameLocalDay(a: number, b: number): boolean {
 }
 
 /**
- * Whether a date-divider belongs immediately before `messages[i]` — always
- * before the first message, and again whenever its local calendar date
- * differs from the message right before it. Exported standalone (pure, no
- * hooks) so it's directly testable without rendering all of ChatWindow's
- * call/voice/video hook-shaped props.
+ * Whether a date-divider belongs immediately before `items[i]` — always before
+ * the first item, and again whenever its local calendar date differs from the
+ * item right before it. Exported standalone (pure, no hooks) so it's directly
+ * testable without rendering all of ChatWindow's call/voice/video hook-shaped
+ * props.
+ *
+ * Typed on the one field it reads rather than on ChatMessage, so the personal
+ * notes log (see PersonalChat) gets identical day-boundary behaviour instead
+ * of a second copy of the same off-by-one-prone rule.
  */
-export function needsDateDivider(messages: ChatMessage[], i: number): boolean {
+export function needsDateDivider(items: { timestamp: number }[], i: number): boolean {
   if (i === 0) return true;
-  return !isSameLocalDay(messages[i - 1].timestamp, messages[i].timestamp);
+  return !isSameLocalDay(items[i - 1].timestamp, items[i].timestamp);
 }
 
 /** Today/Yesterday get dedicated strings; anything older falls back to the

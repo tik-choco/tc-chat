@@ -16,6 +16,7 @@ import {
   CalendarPlus,
   RefreshCw,
   Search,
+  NotebookPen,
 } from "lucide-preact";
 import type { RoomMeta } from "../lib/chatStore";
 import { isValidRoomId } from "../lib/chatStore";
@@ -25,7 +26,7 @@ import type { Friend } from "../lib/friendsStore";
 import { identityFor, type ProfileDirectory } from "../lib/profileDirectory";
 import type { RoomMetaRecord } from "../lib/roomMetaStore";
 import type { Theme } from "../hooks/useTheme";
-import { GLOBAL_ROOM_ID, newId } from "../lib/util";
+import { GLOBAL_ROOM_ID, PERSONAL_ROOM_ID, newId } from "../lib/util";
 import { useT } from "../lib/i18n";
 import { Avatar } from "./Avatar";
 
@@ -162,7 +163,6 @@ export function Sidebar(props: {
         <span class="sidebar-brand-mark">
           <MessagesSquare size={18} />
         </span>
-        <span class="sidebar-brand-name">TC Chat</span>
         <div class="sidebar-brand-actions">
           <button
             type="button"
@@ -236,6 +236,26 @@ export function Sidebar(props: {
           </button>
         </div>
         <ul class="room-list">
+          {/* Pinned above the real rooms, and never part of `rooms` — it's a
+              local-only space (see PERSONAL_ROOM_ID), so it has no swarm
+              topic, no invite, no id to copy and nothing to leave. */}
+          <li class="room-row">
+            <div class="room-row-main">
+              <button
+                type="button"
+                class={`room-item room-item--personal ${
+                  activeRoomId === PERSONAL_ROOM_ID ? "room-item--active" : ""
+                }`}
+                onClick={() => onSelectRoom(PERSONAL_ROOM_ID)}
+              >
+                <NotebookPen size={16} class="room-icon" />
+                <span class="room-item-text">
+                  <span class="room-name">{t("personal.title")}</span>
+                  <span class="room-id">{t("personal.subtitle")}</span>
+                </span>
+              </button>
+            </div>
+          </li>
           {rooms.map((room) => {
             // The shared name/icon (set by any peer, synced via useRoomMeta)
             // wins over this peer's own local label when present.

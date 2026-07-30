@@ -30,13 +30,6 @@
   flex-shrink: 0;
 }
 
-.sidebar-brand-name {
-  font-weight: 700;
-  font-size: 1rem;
-  letter-spacing: -0.01em;
-  color: var(--text);
-}
-
 .sidebar-brand-actions {
   margin-left: auto;
   display: flex;
