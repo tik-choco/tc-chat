@@ -59,7 +59,6 @@ export function useVoiceChat(roomId: string | null) {
   useEffect(() => {
     if (!roomId) leave();
     return () => leave();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
 
   async function join() {

@@ -133,7 +133,6 @@ export function useScreenShare(roomId: string | null) {
   useEffect(() => {
     if (!roomId) stop();
     return () => stop();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
 
   async function start() {

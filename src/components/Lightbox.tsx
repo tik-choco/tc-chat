@@ -165,6 +165,11 @@ export function Lightbox(props: {
     if (!flowEnabled && current?.kind === "video" && current.stream && videoRef.current) {
       videoRef.current.srcObject = current.stream;
     }
+    // `current?.kind` is intentionally not a dependency: an item's kind is
+    // fixed for its lifetime, so it can't change without `current?.key`
+    // changing too. Keying on the item's identity rather than its fields keeps
+    // this from re-binding the stream on unrelated re-renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flowEnabled, current?.key, current?.stream]);
 
   // Escape closes; ArrowLeft/ArrowRight navigate in single mode. While the
@@ -217,6 +222,10 @@ export function Lightbox(props: {
   useEffect(() => {
     if (!flowEnabled || !current) return;
     flowItemRefs.current[current.key]?.scrollIntoView({ block: "start" });
+    // Keyed on the item's `key`, not the whole `current` object: `items` is
+    // rebuilt on every parent render, so depending on the object identity would
+    // re-scroll the flow view constantly while the user is scrolling it by hand.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flowEnabled, current?.key]);
 
   // A pending delete confirmation belongs to the item that was current when
