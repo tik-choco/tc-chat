@@ -16,6 +16,8 @@ import "./styles/calendar.css";
 import "./styles/gif.css";
 import "./styles/gallery.css";
 import "./styles/markdown.css";
+import "./styles/search.css";
+import "./styles/archive.css";
 
 import { UsernameGate } from "./components/UsernameGate";
 import { Sidebar } from "./components/Sidebar";
@@ -30,6 +32,8 @@ import { RoomNamePanel } from "./components/RoomNamePanel";
 import { RoomIdentityPanel } from "./components/RoomIdentityPanel";
 import { RoomInvitePanel } from "./components/RoomInvitePanel";
 import { JoinRoomBanner } from "./components/JoinRoomBanner";
+import { SearchPanel } from "./components/SearchPanel";
+import { HistoryArchivePanel } from "./components/HistoryArchivePanel";
 import { useRooms } from "./hooks/useRooms";
 import { useFriends } from "./hooks/useFriends";
 import { useChatRoom } from "./hooks/useChatRoom";
@@ -47,6 +51,9 @@ import { useProfileDirectory } from "./hooks/useProfileDirectory";
 import { useRoomDisplayName } from "./hooks/useRoomDisplayName";
 import { useRoomMeta } from "./hooks/useRoomMeta";
 import { useTheme } from "./hooks/useTheme";
+import { useMutes } from "./hooks/useMutes";
+import { useRoomNotify } from "./hooks/useRoomNotify";
+import { DEFAULT_ROOM_ALERTS } from "./lib/roomNotifyStore";
 import {
   loadUsername,
   saveUsername,
@@ -58,6 +65,7 @@ import {
   saveMediaCaution,
   loadLastView,
   saveLastView,
+  loadPosts,
   purgeStaleGlobalRoomStorage,
   type ChatDisplay,
 } from "./lib/chatStore";
@@ -65,6 +73,8 @@ import { getNode, createMistStorageBackend } from "./lib/mistClient";
 import { identityFor } from "./lib/profileDirectory";
 import { ensureDidIdentity, ensureSharedDidIdentity } from "./crypto/didIdentity";
 import { GLOBAL_ROOM_ID, hashForLocation, locationFromHash, type AppLocation } from "./lib/util";
+import type { PostSurface } from "./lib/chatStore";
+import type { SearchScopeRoom } from "./lib/postSearch";
 import { MAX_INVITE_NAME } from "./lib/roomInvite";
 import {
   shouldShowOnboarding,
@@ -93,6 +103,8 @@ export function App() {
   const [nodeId, setNodeId] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
   // Which peer's read-only profile card is open (their DID + a fallback name).
   const [peerProfile, setPeerProfile] = useState<{ did: string; name: string } | null>(null);
   // On phones the sidebar is an off-canvas drawer (see responsive.css); this
@@ -125,6 +137,13 @@ export function App() {
 
   const t = useT();
   const theme = useTheme();
+  // Local mute list, shared by the peer profile card (mute/unmute) and the
+  // settings panel (review/undo). The receive-side drop and the render-side
+  // filter both live deeper, in usePostStream/useMessageAlerts.
+  const { mutes, mutedDids, mute, unmute } = useMutes();
+  // Per-room alerting prefs — orthogonal to muting a person: silencing a room
+  // stops only the badge and the desktop notification, never delivery.
+  const { alertsFor: roomAlertsFor, silencedRoomIds, setAlerts: setRoomAlerts } = useRoomNotify();
   const { profile, saveProfile } = useProfile(nodeId);
   const displayName = profile?.displayName || username;
   const { override: roomNameOverride, setOverride: setRoomNameOverride } =
@@ -270,6 +289,12 @@ export function App() {
     if (activeRoomId !== GLOBAL_ROOM_ID && !rooms.some((r) => r.id === activeRoomId)) {
       setPendingInvite({ roomId: activeRoomId, name: name.trim().slice(0, MAX_INVITE_NAME) });
     }
+    // Deliberately keyed on `username` alone, not on activeRoomId/rooms: the
+    // "?name=" param is consumed exactly once, for the room the URL landed on,
+    // and is stripped from the URL above. Re-running on a later room switch
+    // would either find no param (harmless but pointless) or, if it somehow
+    // did, relabel the wrong room.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [username]);
 
   // Escape closes the mobile drawer (a common, expected gesture).
@@ -330,6 +355,45 @@ export function App() {
     sendFriendRequest(peerProfile.did, name);
   }
 
+  /**
+   * Walks a board post up its `parentId` chain to the root of its thread, since
+   * ProjectBoard's `openThreadId` only ever matches a root (a nested reply id
+   * would open nothing). Reads the target room's stored board stream directly:
+   * a search hit is usually in a room we haven't switched to yet, so the
+   * board's own live `nodes` don't cover it. The `seen` set guards against a
+   * cycle in peer-supplied parent links.
+   */
+  function boardThreadRootFor(roomId: string, postId: string): string {
+    const posts = loadPosts("board", roomId);
+    const seen = new Set<string>();
+    let current = posts.find((p) => p.id === postId);
+    while (current?.parentId && !seen.has(current.id)) {
+      seen.add(current.id);
+      const parent = posts.find((p) => p.id === current!.parentId);
+      if (!parent) break;
+      current = parent;
+    }
+    return current?.id ?? postId;
+  }
+
+  /**
+   * Navigates to a search hit. The room + tab always land correctly; on the
+   * board we additionally open the containing thread. There's no
+   * scroll-to-post mechanism in any surface yet, so within a long stream the
+   * user still has to spot the message themselves.
+   */
+  function handleSearchJump(roomId: string, surface: PostSurface, postId: string) {
+    if (roomId !== activeRoomId) {
+      voice.leave();
+      screenShare.stop();
+      videoCall.stop();
+      setActiveRoomId(roomId);
+    }
+    setRoomTab(surface);
+    setBoardThreadId(surface === "board" ? boardThreadRootFor(roomId, postId) : null);
+    setSidebarOpen(false);
+  }
+
   function handleRemoveFriend(did: string) {
     const friend = friends.find((f) => f.did === did && f.status === "accepted");
     removeFriend(did);
@@ -358,6 +422,27 @@ export function App() {
     invitedName ||
     (activeFriend ? identityFor(directory, activeFriend.did, activeFriend.name).name : undefined) ||
     activeRoomId;
+  // Everything worth searching: the room list, every accepted friend's DM (a
+  // DM's id is derived, never in `rooms` — see friendsStore), and the room on
+  // screen even when it's a link-only room that was never added to the list.
+  const searchRooms: SearchScopeRoom[] = [
+    ...rooms.map((r) => ({ id: r.id, name: sharedRoomMetaFor(r.id)?.name || r.name })),
+    ...friends
+      .filter((f) => f.status === "accepted")
+      .map((f) => ({ id: f.roomId, name: identityFor(directoryFor(f.roomId), f.did, f.name).name })),
+  ];
+  if (!searchRooms.some((r) => r.id === activeRoomId)) {
+    searchRooms.push({ id: activeRoomId, name: roomName });
+  }
+
+  // Silenced rooms, resolved to display names so Settings can list them. A room
+  // whose preference outlived the room itself (left, or a removed friend's DM)
+  // still gets a row — under its raw id — so the setting is never unreachable.
+  const silencedRooms = silencedRoomIds.map((id) => ({
+    id,
+    name: searchRooms.find((r) => r.id === id)?.name ?? id,
+  }));
+
   const canEditRoomIdentity = status === "joined" && activeRoomId !== GLOBAL_ROOM_ID && !isDm;
   const canInvite = activeRoomId !== GLOBAL_ROOM_ID && !isDm;
   // A room reached by link (invite or plain deep link) is fully usable without
@@ -395,6 +480,10 @@ export function App() {
         }}
         onOpenPersonalCalendar={() => {
           setPersonalCalendarOpen(true);
+          setSidebarOpen(false);
+        }}
+        onOpenSearch={() => {
+          setSearchOpen(true);
           setSidebarOpen(false);
         }}
         rooms={rooms}
@@ -521,6 +610,17 @@ export function App() {
           onRequestNotifications={requestNotifications}
           mediaCaution={mediaCaution}
           onChangeMediaCaution={handleChangeMediaCaution}
+          mutes={mutes}
+          onUnmute={unmute}
+          activeRoomName={roomName}
+          activeRoomAlerts={roomAlertsFor(activeRoomId)}
+          onChangeActiveRoomAlerts={(prefs) => setRoomAlerts(activeRoomId, prefs)}
+          silencedRooms={silencedRooms}
+          onResetRoomAlerts={(id) => setRoomAlerts(id, DEFAULT_ROOM_ALERTS)}
+          onOpenArchive={() => {
+            setSettingsOpen(false);
+            setArchiveOpen(true);
+          }}
           onClose={() => setSettingsOpen(false)}
           onOpenGuide={() => {
             setSettingsOpen(false);
@@ -590,8 +690,23 @@ export function App() {
           onAcceptRequest={() => peerProfile && acceptFriendRequest(peerProfile.did)}
           onDeclineRequest={() => peerProfile && declineFriendRequest(peerProfile.did)}
           onCancelRequest={() => peerProfile && cancelFriendRequest(peerProfile.did)}
+          muted={mutedDids.has(peerProfile.did)}
+          onMute={(name) => mute(peerProfile.did, name)}
+          onUnmute={() => unmute(peerProfile.did)}
           onClose={() => setPeerProfile(null)}
         />
+      )}
+
+      {searchOpen && (
+        <SearchPanel
+          rooms={searchRooms}
+          onJump={handleSearchJump}
+          onClose={() => setSearchOpen(false)}
+        />
+      )}
+
+      {archiveOpen && (
+        <HistoryArchivePanel rooms={searchRooms} onClose={() => setArchiveOpen(false)} />
       )}
     </div>
   );

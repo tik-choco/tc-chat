@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "preact/hooks";
-import { Paperclip, BadgeCheck, Pencil, Trash2, Maximize2 } from "lucide-preact";
+import { Paperclip, BadgeCheck, Pencil, Trash2, Maximize2, Reply, CornerUpLeft } from "lucide-preact";
 import type { ChatMessage } from "../lib/chatStore";
 import { resolveStorageUrl, invalidateStorageUrl } from "../lib/mediaUrl";
 import { formatBytes, formatTime, shortDid } from "../lib/util";
 import { identityFor, type ProfileDirectory } from "../lib/profileDirectory";
-import { useT } from "../lib/i18n";
+import { useT, type TFunc } from "../lib/i18n";
 import { extractHttpUrls } from "../lib/linkPreview";
 import { Avatar } from "./Avatar";
 import { ReactionBar } from "./ReactionBar";
@@ -107,6 +107,26 @@ function MediaContent(props: { message: ChatMessage; onMaximize: (messageId: str
   );
 }
 
+const REPLY_SNIPPET_MAX_CHARS = 60;
+
+/**
+ * Plain-text, truncated preview of a message for a quote/reply header. Always
+ * plain text — never routed through MarkdownView — because a quote only needs
+ * to identify the message, and nesting peer-supplied markdown inside a quote
+ * invites layout abuse (see MarkdownView's own XSS-mitigation rationale).
+ */
+export function replySnippet(message: ChatMessage, t: TFunc): string {
+  if (message.deleted) return t("chat.messageDeleted");
+  if (message.kind === "text") {
+    const flat = (message.text ?? "").replace(/\s+/g, " ").trim();
+    return flat.length > REPLY_SNIPPET_MAX_CHARS
+      ? flat.slice(0, REPLY_SNIPPET_MAX_CHARS) + "…"
+      : flat;
+  }
+  // media/file kinds have no text body worth quoting — name the attachment.
+  return message.fileName ?? t("chat.file");
+}
+
 export type ChatDisplay = "list" | "bubble";
 
 /** Position of a message within a consecutive-message-from-same-sender run,
@@ -117,13 +137,16 @@ const GROUP_WINDOW_MS = 5 * 60_000;
 
 // Two messages "join" into the same consecutive-message group when they're
 // from the same sender, neither is a deleted tombstone (a delete always
-// breaks the visual run), and they land within 5 minutes of each other.
+// breaks the visual run), the later one isn't a reply (a reply carries its
+// own quoted header, so it must never collapse into a headerless "middle"/
+// "last" row), and they land within 5 minutes of each other.
 function joins(a: ChatMessage | undefined, b: ChatMessage | undefined): boolean {
   return (
     !!a &&
     !!b &&
     !a.deleted &&
     !b.deleted &&
+    !b.parentId &&
     a.fromId === b.fromId &&
     Math.abs(b.timestamp - a.timestamp) <= GROUP_WINDOW_MS
   );
@@ -148,13 +171,25 @@ export function MessageBubble(props: {
   /** Bubble-mode grouping position within a consecutive run from the same
    * sender; controls avatar/name header visibility. Defaults to "single". */
   groupPos?: BubbleGroupPos;
+  /** The message this one replies to, already resolved by ChatWindow (it holds
+   * the full room list, so this component never looks its own parent up).
+   * Only meaningful when `message.parentId` is set; undefined there means the
+   * original isn't available locally (aged out of the post cap, or never
+   * received) — rendered as a "not available" placeholder, never blank. */
+  parentMessage?: ChatMessage;
   onToggleReaction: (targetId: string, emoji: string) => void;
+  /** Start composing a reply to this message (ChatWindow owns the reply-target state). */
+  onReply: (targetId: string) => void;
   onEditMessage: (targetId: string, text: string) => void;
   onDeleteMessage: (targetId: string) => void;
   /** Open the sender's read-only profile card (fromId is their DID). */
   onOpenProfile: (did: string, fallbackName: string) => void;
   /** Maximize this post's media in the room's shared gallery Lightbox. */
   onMaximize: (messageId: string) => void;
+  /** Scroll+flash the quoted original into view; omitted quote headers still render (just inert on click). */
+  onJumpToMessage?: (id: string) => void;
+  /** True for a brief window right after `onJumpToMessage` lands here — drives the flash highlight (see chat.css). */
+  flash?: boolean;
 }) {
   const {
     message,
@@ -163,11 +198,15 @@ export function MessageBubble(props: {
     display,
     directory,
     groupPos = "single",
+    parentMessage,
     onToggleReaction,
+    onReply,
     onEditMessage,
     onDeleteMessage,
     onOpenProfile,
     onMaximize,
+    onJumpToMessage,
+    flash = false,
   } = props;
   const t = useT();
   const [editing, setEditing] = useState(false);
@@ -186,11 +225,17 @@ export function MessageBubble(props: {
   // drop everything interactive.
   if (message.deleted) {
     return display === "list" ? (
-      <div class="msg-row msg-row--deleted">
+      <div
+        class={`msg-row msg-row--deleted${flash ? " msg-row--flash" : ""}`}
+        data-message-id={message.id}
+      >
         <p class="msg-deleted">{t("chat.messageDeleted")}</p>
       </div>
     ) : (
-      <div class={`bubble-row bubble-row--${groupPos}${isOwn ? " bubble-row--own" : ""}`}>
+      <div
+        class={`bubble-row bubble-row--${groupPos}${isOwn ? " bubble-row--own" : ""}${flash ? " bubble-row--flash" : ""}`}
+        data-message-id={message.id}
+      >
         {!isOwn && <span class="bubble-avatar-gap" aria-hidden="true" />}
         <p class="msg-deleted msg-deleted--bubble">{t("chat.messageDeleted")}</p>
       </div>
@@ -222,43 +267,83 @@ export function MessageBubble(props: {
       onToggle={(emoji) => onToggleReaction(message.id, emoji)}
     />
   );
-  // Own messages get quiet hover controls: edit only for plain text (media/file
+  // Reply is available on any message (own or not) — it only ever sets
+  // `parentId` on a brand new post of one's own, so it needs no author check.
+  // Edit/delete stay own-message-only: edit only for plain text (media/file
   // bodies aren't editable — see usePostStream.editPost), delete for any kind.
-  const actions = isOwn && (
+  const actions = (
     <span class="msg-actions">
-      {message.kind === "text" && (
-        <button
-          type="button"
-          class="msg-action-btn"
-          aria-label={t("common.edit")}
-          title={t("common.edit")}
-          onClick={startEdit}
-        >
-          <Pencil size={13} />
-        </button>
-      )}
       <button
         type="button"
-        class="msg-action-btn msg-action-btn--danger"
-        aria-label={t("common.delete")}
-        title={t("chat.deleteHint")}
-        onClick={requestDelete}
+        class="msg-action-btn"
+        aria-label={t("chat.replyAction")}
+        title={t("chat.replyAction")}
+        onClick={() => onReply(message.id)}
       >
-        <Trash2 size={13} />
+        <Reply size={13} />
       </button>
-      {confirmingDelete && (
-        <ConfirmDialog
-          title={t("chat.deleteMessageTitle")}
-          message={t("chat.deleteMessageConfirm")}
-          confirmLabel={t("common.deleteConfirm")}
-          onConfirm={() => {
-            onDeleteMessage(message.id);
-            setConfirmingDelete(false);
-          }}
-          onCancel={() => setConfirmingDelete(false)}
-        />
+      {isOwn && (
+        <>
+          {message.kind === "text" && (
+            <button
+              type="button"
+              class="msg-action-btn"
+              aria-label={t("common.edit")}
+              title={t("common.edit")}
+              onClick={startEdit}
+            >
+              <Pencil size={13} />
+            </button>
+          )}
+          <button
+            type="button"
+            class="msg-action-btn msg-action-btn--danger"
+            aria-label={t("common.delete")}
+            title={t("chat.deleteHint")}
+            onClick={requestDelete}
+          >
+            <Trash2 size={13} />
+          </button>
+          {confirmingDelete && (
+            <ConfirmDialog
+              title={t("chat.deleteMessageTitle")}
+              message={t("chat.deleteMessageConfirm")}
+              confirmLabel={t("common.deleteConfirm")}
+              onConfirm={() => {
+                onDeleteMessage(message.id);
+                setConfirmingDelete(false);
+              }}
+              onCancel={() => setConfirmingDelete(false)}
+            />
+          )}
+        </>
       )}
     </span>
+  );
+  // Quoted header shown above a reply's own content. `parentMessage` is
+  // resolved by ChatWindow (it holds every message; this component never
+  // looks its own parent up) — undefined means the original isn't available
+  // locally, which degrades to a fixed placeholder rather than a blank/crash.
+  const quotedHeader = message.parentId != null && (
+    <button
+      type="button"
+      class="reply-quote"
+      onClick={() => onJumpToMessage?.(message.parentId!)}
+      aria-label={t("chat.replyJump")}
+      title={t("chat.replyJump")}
+    >
+      <CornerUpLeft size={12} class="reply-quote-icon" aria-hidden="true" />
+      {parentMessage ? (
+        <span class="reply-quote-body">
+          <span class="reply-quote-name">
+            {identityFor(directory, parentMessage.fromId, parentMessage.fromName).name}
+          </span>
+          <span class="reply-quote-snippet">{replySnippet(parentMessage, t)}</span>
+        </span>
+      ) : (
+        <span class="reply-quote-body reply-quote-missing">{t("chat.replyOriginalMissing")}</span>
+      )}
+    </button>
   );
   const editedMark = message.editedAt !== undefined && (
     <span class="msg-edited">{t("common.edited")}</span>
@@ -310,7 +395,10 @@ export function MessageBubble(props: {
   // List style: avatar + name + text row for every message (own included).
   if (display === "list") {
     return (
-      <div class={`msg-row ${isOwn ? "msg-row--own" : ""}`}>
+      <div
+        class={`msg-row ${isOwn ? "msg-row--own" : ""}${flash ? " msg-row--flash" : ""}`}
+        data-message-id={message.id}
+      >
         <button
           type="button"
           class="avatar-btn"
@@ -331,6 +419,7 @@ export function MessageBubble(props: {
             </span>
             {actions}
           </div>
+          {quotedHeader}
           {body}
           {reactions}
         </div>
@@ -345,7 +434,10 @@ export function MessageBubble(props: {
     message.kind !== "text" &&
     (message.mimeType?.startsWith("image/") || message.mimeType?.startsWith("video/"));
   return (
-    <div class={`bubble-row bubble-row--${groupPos}${isOwn ? " bubble-row--own" : ""}`}>
+    <div
+      class={`bubble-row bubble-row--${groupPos}${isOwn ? " bubble-row--own" : ""}${flash ? " bubble-row--flash" : ""}`}
+      data-message-id={message.id}
+    >
       {!isOwn &&
         (showHead ? (
           <button
@@ -365,6 +457,7 @@ export function MessageBubble(props: {
             <span class="bubble-name">{name}</span>
           </button>
         )}
+        {quotedHeader}
         <div class="bubble-line">
           <div class={`bubble ${isOwn ? "bubble--own" : "bubble--other"}${isMediaBody ? " bubble--media" : ""}`}>
             {body}

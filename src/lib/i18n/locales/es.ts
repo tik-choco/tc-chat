@@ -53,6 +53,14 @@ export const es: Messages = {
   },
 
   chat: {
+    // Quote replies + day dividers
+    replyAction: "Responder",
+    replyingTo: "Respondiendo a {name}",
+    replyCancel: "Cancelar respuesta",
+    replyOriginalMissing: "El mensaje original ya no está disponible",
+    replyJump: "Ir al mensaje original",
+    dateToday: "Hoy",
+    dateYesterday: "Ayer",
     // MessageBubble (media body)
     mediaLoadFailed: "No se pudo cargar este archivo",
     fullscreen: "Ver en pantalla completa",
@@ -423,5 +431,54 @@ export const es: Messages = {
     bannerUnjoined: "Esta sala todavía no está en tu lista",
     bannerJoin: "Añadir sala",
     bannerDismiss: "Cerrar",
+  },
+  moderation: {
+    muteAction: "Silenciar",
+    unmuteAction: "Dejar de silenciar",
+    mutedBadge: "Silenciada",
+    mutedNotice: "Has silenciado a esta persona. Sus nuevas publicaciones y avisos no te llegarán.",
+    settingsTitle: "Personas silenciadas",
+    settingsDesc:
+      "Al silenciar dejas de recibir sus nuevas publicaciones y reacciones, y se ocultan las que ya tenías. Puedes revertirlo cuando quieras.",
+    settingsEmpty: "No has silenciado a nadie",
+    settingsCount: "{count} silenciadas",
+    confirmTitle: "¿Silenciar a esta persona?",
+    confirmBody:
+      'Se silenciará a "{name}". Dejarás de recibir sus nuevas publicaciones y se ocultarán las que ya tenías.',
+    confirmMute: "Silenciar",
+  },
+  notifications: {
+    roomAlertsTitle: "Notificaciones por sala",
+    roomAlertsDesc:
+      "Silenciar una sala no detiene sus publicaciones: siguen llegando y guardándose como siempre. Solo se detienen las notificaciones de escritorio y el contador de no leídos (esto es distinto de silenciar a una persona).",
+    notifyLabel: "Notificaciones de escritorio",
+    notifyDesc: "No mostrar una notificación de escritorio por las publicaciones nuevas de esta sala.",
+    badgeLabel: "Contador de no leídos",
+    badgeDesc: "No mostrar el número de no leídos de esta sala en la barra lateral.",
+    silencedBadge: "Silenciada",
+    toggleAria: 'Cambiar las notificaciones de "{room}"',
+    settingsEmpty: "No has silenciado ninguna sala",
+    settingsCount: "{count} salas silenciadas",
+    allEnabled: "Notificaciones por defecto",
+  },
+  archive: {
+    title: "Copia del historial",
+    desc: "Descarga el historial de cada sala guardado en este navegador como un archivo JSON.",
+    openPanel: "Copia del historial",
+    download: "Descargar",
+    postCount: "{count} publicaciones",
+    empty: "Todavía no hay publicaciones",
+    noRooms: "No te has unido a ninguna sala",
+    mediaNote:
+      "No incluye el contenido de imágenes ni archivos — solo se registra una referencia (CID) a ellos.",
+  },
+  search: {
+    title: "Buscar mensajes",
+    placeholder: "Escribe una palabra clave…",
+    empty: "Escribe algo para buscar",
+    noResults: "No se encontraron mensajes que coincidan",
+    resultsCount: "{count} resultados",
+    openAction: "Abrir",
+    openPanel: "Buscar mensajes",
   },
 };

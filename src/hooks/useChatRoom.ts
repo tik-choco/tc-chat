@@ -61,7 +61,14 @@ export function useChatRoom(roomId: string | null, localName: string) {
     localName,
   );
 
-  const sendText = (text: string) => createPost({ parentId: null, kind: "text", text });
+  // A reply is an ordinary `tc-chat:post` wire with `parentId` set to the
+  // message it quotes — PostNode/PostWire have carried `parentId` since the
+  // board's arbitrary-depth nesting (see boardTree.ts), so replies need NO
+  // wire-protocol change at all. An older tc-chat peer or the Rust CLI bot
+  // (cli/) that doesn't know about "replies" just renders it as a normal
+  // flat top-level message; parentId is metadata they're free to ignore.
+  const sendText = (text: string, parentId?: string | null) =>
+    createPost({ parentId: parentId ?? null, kind: "text", text });
   const sendFile = (file: File) => createMedia(file);
   // Fire-and-forget from MessageInput; a stored file whose tc-storage envelope
   // no local key opens rejects (see createStoredFile) — log instead of leaving

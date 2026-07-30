@@ -1,7 +1,10 @@
 import { useState } from "preact/hooks";
-import { X, HelpCircle, Bell } from "lucide-preact";
+import { X, HelpCircle, Bell, Volume2, BellOff, Download } from "lucide-preact";
 import { type ChatDisplay, loadGiphyApiKey, saveGiphyApiKey } from "../lib/chatStore";
 import type { NotifPermission } from "../hooks/useMessageAlerts";
+import type { MutedPeer } from "../lib/muteStore";
+import type { RoomAlertPrefs } from "../lib/roomNotifyStore";
+import { shortDid } from "../lib/util";
 import { useT, useLocale, LOCALES, LOCALE_LABELS } from "../lib/i18n";
 
 export function SettingsPanel(props: {
@@ -14,6 +17,18 @@ export function SettingsPanel(props: {
   onRequestNotifications: () => void;
   mediaCaution: boolean;
   onChangeMediaCaution: (enabled: boolean) => void;
+  /** Locally muted peers, newest first (see muteStore). */
+  mutes: MutedPeer[];
+  onUnmute: (did: string) => void;
+  /** The active room's alerting prefs + its display name, for the toggles below. */
+  activeRoomName: string;
+  activeRoomAlerts: RoomAlertPrefs;
+  onChangeActiveRoomAlerts: (prefs: Partial<RoomAlertPrefs>) => void;
+  /** Rooms with a non-default alerting preference, so they can be found and undone. */
+  silencedRooms: { id: string; name: string }[];
+  onResetRoomAlerts: (roomId: string) => void;
+  /** Closes this panel and opens the history-backup panel. */
+  onOpenArchive: () => void;
   onClose: () => void;
   /** Closes this panel and re-opens the first-run onboarding guide. */
   onOpenGuide: () => void;
@@ -27,6 +42,14 @@ export function SettingsPanel(props: {
     onRequestNotifications,
     mediaCaution,
     onChangeMediaCaution,
+    mutes,
+    onUnmute,
+    activeRoomName,
+    activeRoomAlerts,
+    onChangeActiveRoomAlerts,
+    silencedRooms,
+    onResetRoomAlerts,
+    onOpenArchive,
     onClose,
     onOpenGuide,
   } = props;
@@ -124,6 +147,81 @@ export function SettingsPanel(props: {
         </section>
 
         <section class="settings-section">
+          <h3 class="settings-title">{t("notifications.roomAlertsTitle")}</h3>
+          <p class="settings-desc">{t("notifications.roomAlertsDesc")}</p>
+          <p class="settings-desc settings-desc--room">{activeRoomName}</p>
+          <div class="settings-options">
+            {/* Both toggles read "on = alerting", so an active button means the
+                default (alerts allowed) — matching every other toggle here. */}
+            <button
+              type="button"
+              class={`settings-option ${activeRoomAlerts.notify ? "settings-option--active" : ""}`}
+              aria-pressed={activeRoomAlerts.notify}
+              aria-label={t("notifications.toggleAria", { room: activeRoomName })}
+              onClick={() => onChangeActiveRoomAlerts({ notify: !activeRoomAlerts.notify })}
+            >
+              <span class="settings-option-radio" aria-hidden="true" />
+              <span class="settings-option-body">
+                <span class="settings-option-label">{t("notifications.notifyLabel")}</span>
+                <span class="settings-option-desc">{t("notifications.notifyDesc")}</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              class={`settings-option ${activeRoomAlerts.badge ? "settings-option--active" : ""}`}
+              aria-pressed={activeRoomAlerts.badge}
+              onClick={() => onChangeActiveRoomAlerts({ badge: !activeRoomAlerts.badge })}
+            >
+              <span class="settings-option-radio" aria-hidden="true" />
+              <span class="settings-option-body">
+                <span class="settings-option-label">{t("notifications.badgeLabel")}</span>
+                <span class="settings-option-desc">{t("notifications.badgeDesc")}</span>
+              </span>
+            </button>
+          </div>
+          {silencedRooms.length === 0 ? (
+            <p class="settings-desc settings-desc--empty">{t("notifications.settingsEmpty")}</p>
+          ) : (
+            <>
+              <p class="settings-desc">
+                {t("notifications.settingsCount", { count: silencedRooms.length })}
+              </p>
+              <ul class="settings-mutes">
+                {silencedRooms.map((room) => (
+                  <li key={room.id} class="settings-mute-row">
+                    <span class="settings-mute-meta">
+                      <span class="settings-mute-name">{room.name}</span>
+                      <span class="settings-mute-did">{t("notifications.silencedBadge")}</span>
+                    </span>
+                    <button
+                      type="button"
+                      class="btn-ghost settings-mute-unmute"
+                      onClick={() => onResetRoomAlerts(room.id)}
+                    >
+                      <BellOff size={14} /> {t("notifications.allEnabled")}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </section>
+
+        <section class="settings-section">
+          <h3 class="settings-title">{t("archive.title")}</h3>
+          <p class="settings-desc">{t("archive.desc")}</p>
+          <div class="settings-options">
+            <button type="button" class="settings-option" onClick={onOpenArchive}>
+              <Download size={16} class="settings-option-icon" />
+              <span class="settings-option-body">
+                <span class="settings-option-label">{t("archive.openPanel")}</span>
+                <span class="settings-option-desc">{t("archive.mediaNote")}</span>
+              </span>
+            </button>
+          </div>
+        </section>
+
+        <section class="settings-section">
           <h3 class="settings-title">{t("settings.giphyApiKey")}</h3>
           <p class="settings-desc">{t("settings.giphyApiKeyDesc")}</p>
           <div class="settings-giphy-row">
@@ -168,6 +266,39 @@ export function SettingsPanel(props: {
               </span>
             </button>
           </div>
+        </section>
+
+        <section class="settings-section">
+          <h3 class="settings-title">{t("moderation.settingsTitle")}</h3>
+          <p class="settings-desc">{t("moderation.settingsDesc")}</p>
+          {mutes.length === 0 ? (
+            <p class="settings-desc settings-desc--empty">{t("moderation.settingsEmpty")}</p>
+          ) : (
+            <>
+              <p class="settings-desc">
+                {t("moderation.settingsCount", { count: mutes.length })}
+              </p>
+              <ul class="settings-mutes">
+                {mutes.map((m) => (
+                  <li key={m.did} class="settings-mute-row">
+                    <span class="settings-mute-meta">
+                      <span class="settings-mute-name">{m.name || t("account.participant")}</span>
+                      <span class="settings-mute-did" title={m.did}>
+                        {shortDid(m.did)}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      class="btn-ghost settings-mute-unmute"
+                      onClick={() => onUnmute(m.did)}
+                    >
+                      <Volume2 size={14} /> {t("moderation.unmuteAction")}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </section>
 
         <section class="settings-section">

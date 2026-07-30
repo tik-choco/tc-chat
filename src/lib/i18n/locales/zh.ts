@@ -52,6 +52,14 @@ export const zh: Messages = {
   },
 
   chat: {
+    // Quote replies + day dividers
+    replyAction: "回复",
+    replyingTo: "回复 {name}",
+    replyCancel: "取消回复",
+    replyOriginalMissing: "原消息已不可用",
+    replyJump: "跳转到原消息",
+    dateToday: "今天",
+    dateYesterday: "昨天",
     // MessageBubble (media body)
     mediaLoadFailed: "文件加载失败",
     fullscreen: "全屏查看",
@@ -413,5 +421,52 @@ export const zh: Messages = {
     bannerUnjoined: "这个房间还没有加入你的房间列表",
     bannerJoin: "添加房间",
     bannerDismiss: "关闭",
+  },
+  moderation: {
+    muteAction: "屏蔽",
+    unmuteAction: "取消屏蔽",
+    mutedBadge: "已屏蔽",
+    mutedNotice: "你已屏蔽这个人。他们的新投稿和通知不会送达。",
+    settingsTitle: "已屏蔽的用户",
+    settingsDesc:
+      "屏蔽后将不再收到对方的新投稿和表情回应，已有投稿也会被隐藏。随时取消屏蔽即可全部恢复。",
+    settingsEmpty: "你还没有屏蔽任何人",
+    settingsCount: "已屏蔽 {count} 人",
+    confirmTitle: "要屏蔽这个人吗？",
+    confirmBody: "将屏蔽「{name}」。你将不再收到对方的新投稿，已有投稿也会被隐藏。",
+    confirmMute: "屏蔽",
+  },
+  notifications: {
+    roomAlertsTitle: "各房间的通知设置",
+    roomAlertsDesc:
+      "关闭通知后，该房间的投稿依然会正常送达并保存，只是不再弹出桌面通知和未读标记（这与屏蔽某个用户是不同的功能）。",
+    notifyLabel: "桌面通知",
+    notifyDesc: "该房间有新投稿时不弹出桌面通知。",
+    badgeLabel: "未读标记",
+    badgeDesc: "不在侧边栏显示该房间的未读数量。",
+    silencedBadge: "已静音",
+    toggleAria: "切换「{room}」的通知设置",
+    settingsEmpty: "没有已静音的房间",
+    settingsCount: "已静音 {count} 个房间",
+    allEnabled: "通知为默认设置",
+  },
+  archive: {
+    title: "历史备份",
+    desc: "可以把本浏览器保存的各房间历史下载为 JSON 文件。",
+    openPanel: "历史备份",
+    download: "下载",
+    postCount: "{count} 条投稿",
+    empty: "还没有投稿",
+    noRooms: "你还没有加入任何房间",
+    mediaNote: "不包含图片和文件的内容，只记录对文件的引用（CID）。",
+  },
+  search: {
+    title: "搜索消息",
+    placeholder: "输入关键词…",
+    empty: "请输入要搜索的关键词",
+    noResults: "没有找到匹配的消息",
+    resultsCount: "找到 {count} 条",
+    openAction: "打开",
+    openPanel: "搜索消息",
   },
 };

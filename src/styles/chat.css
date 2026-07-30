@@ -222,6 +222,34 @@
   opacity: 0.6;
 }
 
+/* Day boundary between messages — reads as a divider, not a message: a thin
+   rule through a centered pill label, same idiom as most chat apps. */
+.date-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.35rem 0;
+}
+
+.date-divider::before,
+.date-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.date-divider-label {
+  flex: none;
+  padding: 0.2rem 0.65rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-subtle);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 /* "X is typing…", shown between the message list and the input. */
 .typing-indicator {
   margin: 0;
@@ -240,6 +268,40 @@
 
 .bubble-row--own {
   justify-content: flex-end;
+}
+
+/* Brief highlight after a reply's quoted-header "jump to original" click
+   (see ChatWindow.jumpToMessage) — a colour pulse, not movement, so it stays
+   inside prefers-reduced-motion's "keep colour/opacity, drop transform"
+   carve-out (see motion.css's own reduced-motion rationale). */
+@keyframes msg-flash {
+  0%,
+  100% {
+    background-color: transparent;
+  }
+  25% {
+    background-color: var(--accent-bg);
+  }
+}
+
+.msg-row--flash {
+  animation: msg-flash 1.6s var(--ease-out);
+  border-radius: 10px;
+}
+
+.bubble-row--flash .bubble {
+  animation: msg-flash 1.6s var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Reduced motion keeps the colour cue but drops the pulsing animation — a
+     flat highlight for as long as the flash class is applied, same "snap
+     instead of animate" trade-off motion.css already makes elsewhere. */
+  .msg-row--flash,
+  .bubble-row--flash .bubble {
+    animation: none;
+    background-color: var(--accent-bg);
+  }
 }
 
 /* .chat-scroll's gap (0.5rem) is shared with list mode, so it reads too wide
@@ -335,6 +397,61 @@
   display: flex;
   align-items: center;
   gap: 0.3rem;
+}
+
+/* Quoted "replying to" header shown above a reply's own body (list mode:
+   inside .msg-body; bubble mode: above .bubble-line). A <button> — clicking
+   it jumps to the quoted original (see ChatWindow.jumpToMessage) — but reads
+   visually as a quiet inline quote, not an action button. */
+.reply-quote {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 100%;
+  margin-bottom: 0.15rem;
+  padding: 0.2rem 0.5rem;
+  border: none;
+  border-left: 2px solid var(--border-strong);
+  border-radius: var(--radius-xs);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.reply-quote:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.reply-quote-icon {
+  flex: none;
+  opacity: 0.7;
+}
+
+.reply-quote-body {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.reply-quote-name {
+  flex: none;
+  font-weight: 600;
+}
+
+.reply-quote-snippet {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reply-quote-missing {
+  font-style: italic;
+  opacity: 0.75;
 }
 
 .msg-edited {
@@ -1209,6 +1326,64 @@
     justify-content: center;
     width: 100%;
   }
+}
+
+/* Reply-in-progress bar — sits directly above MessageInput (a sibling in
+   ChatWindow's own markup, not part of MessageInput itself, so MessageInput
+   stays reply-agnostic). Reads as a continuation of the composer, not a
+   separate panel. */
+.reply-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 1.25rem;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.reply-bar-icon {
+  flex: none;
+  color: var(--text-subtle);
+}
+
+.reply-bar-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  gap: 0.05rem;
+}
+
+.reply-bar-label {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.reply-bar-snippet {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.reply-bar-cancel {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.reply-bar-cancel:hover {
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .message-input-container {

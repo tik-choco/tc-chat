@@ -55,6 +55,7 @@ describe("MessageBubble display modes", () => {
         display="list"
         directory={directory}
         onToggleReaction={noop}
+        onReply={noop}
         onEditMessage={noop}
         onDeleteMessage={noop}
         onOpenProfile={noop}
@@ -74,6 +75,7 @@ describe("MessageBubble display modes", () => {
         display="list"
         directory={meDirectory}
         onToggleReaction={noop}
+        onReply={noop}
         onEditMessage={noop}
         onDeleteMessage={noop}
         onOpenProfile={noop}
@@ -96,6 +98,7 @@ describe("MessageBubble display modes", () => {
         display="list"
         directory={directory}
         onToggleReaction={noop}
+        onReply={noop}
         onEditMessage={noop}
         onDeleteMessage={noop}
         onOpenProfile={onOpenProfile}
@@ -115,6 +118,7 @@ describe("MessageBubble display modes", () => {
         display="bubble"
         directory={meDirectory}
         onToggleReaction={noop}
+        onReply={noop}
         onEditMessage={noop}
         onDeleteMessage={noop}
         onOpenProfile={noop}
@@ -142,6 +146,7 @@ describe("MessageBubble grouping (bubble mode)", () => {
         directory={directory}
         groupPos="middle"
         onToggleReaction={noop}
+        onReply={noop}
         onEditMessage={noop}
         onDeleteMessage={noop}
         onOpenProfile={noop}
@@ -164,6 +169,7 @@ describe("MessageBubble grouping (bubble mode)", () => {
         directory={directory}
         groupPos="last"
         onToggleReaction={noop}
+        onReply={noop}
         onEditMessage={noop}
         onDeleteMessage={noop}
         onOpenProfile={noop}
@@ -185,6 +191,7 @@ describe("MessageBubble grouping (bubble mode)", () => {
         directory={directory}
         groupPos="first"
         onToggleReaction={noop}
+        onReply={noop}
         onEditMessage={noop}
         onDeleteMessage={noop}
         onOpenProfile={noop}
@@ -206,6 +213,7 @@ describe("MessageBubble grouping (bubble mode)", () => {
         display="bubble"
         directory={directory}
         onToggleReaction={noop}
+        onReply={noop}
         onEditMessage={noop}
         onDeleteMessage={noop}
         onOpenProfile={noop}
@@ -227,6 +235,7 @@ describe("MessageBubble grouping (bubble mode)", () => {
         directory={directory}
         groupPos="middle"
         onToggleReaction={noop}
+        onReply={noop}
         onEditMessage={noop}
         onDeleteMessage={noop}
         onOpenProfile={noop}
@@ -248,6 +257,7 @@ describe("MessageBubble grouping (bubble mode)", () => {
         directory={directory}
         groupPos="first"
         onToggleReaction={noop}
+        onReply={noop}
         onEditMessage={noop}
         onDeleteMessage={noop}
         onOpenProfile={noop}
@@ -268,6 +278,7 @@ describe("MessageBubble grouping (bubble mode)", () => {
         directory={meDirectory}
         groupPos="single"
         onToggleReaction={noop}
+        onReply={noop}
         onEditMessage={noop}
         onDeleteMessage={noop}
         onOpenProfile={noop}
@@ -293,6 +304,7 @@ describe("MessageBubble edit/delete", () => {
         display="list"
         directory={meDirectory}
         onToggleReaction={noop}
+        onReply={noop}
         onEditMessage={noop}
         onDeleteMessage={noop}
         onOpenProfile={noop}
@@ -313,6 +325,7 @@ describe("MessageBubble edit/delete", () => {
         display="list"
         directory={meDirectory}
         onToggleReaction={noop}
+        onReply={noop}
         onEditMessage={noop}
         onDeleteMessage={noop}
         onOpenProfile={noop}
@@ -331,6 +344,7 @@ describe("MessageBubble edit/delete", () => {
         display="list"
         directory={meDirectory}
         onToggleReaction={noop}
+        onReply={noop}
         onEditMessage={noop}
         onDeleteMessage={noop}
         onOpenProfile={noop}
@@ -352,6 +366,7 @@ describe("MessageBubble edit/delete", () => {
         display="list"
         directory={meDirectory}
         onToggleReaction={noop}
+        onReply={noop}
         onEditMessage={onEditMessage}
         onDeleteMessage={noop}
         onOpenProfile={noop}
@@ -376,6 +391,7 @@ describe("MessageBubble edit/delete", () => {
         display="list"
         directory={meDirectory}
         onToggleReaction={noop}
+        onReply={noop}
         onEditMessage={noop}
         onDeleteMessage={onDeleteMessage}
         onOpenProfile={noop}
@@ -402,6 +418,7 @@ describe("MessageBubble edit/delete", () => {
         display="list"
         directory={meDirectory}
         onToggleReaction={noop}
+        onReply={noop}
         onEditMessage={noop}
         onDeleteMessage={onDeleteMessage}
         onOpenProfile={noop}
@@ -424,6 +441,7 @@ describe("MessageBubble edit/delete", () => {
         display="list"
         directory={meDirectory}
         onToggleReaction={noop}
+        onReply={noop}
         onEditMessage={noop}
         onDeleteMessage={onDeleteMessage}
         onOpenProfile={noop}
@@ -445,6 +463,7 @@ describe("MessageBubble edit/delete", () => {
         display="list"
         directory={meDirectory}
         onToggleReaction={noop}
+        onReply={noop}
         onEditMessage={noop}
         onDeleteMessage={noop}
         onOpenProfile={noop}
@@ -480,6 +499,7 @@ describe("MessageBubble media lightbox", () => {
         display="list"
         directory={meDirectory}
         onToggleReaction={noop}
+        onReply={noop}
         onEditMessage={noop}
         onDeleteMessage={noop}
         onOpenProfile={noop}
@@ -503,6 +523,7 @@ describe("MessageBubble media lightbox", () => {
         display="list"
         directory={meDirectory}
         onToggleReaction={noop}
+        onReply={noop}
         onEditMessage={noop}
         onDeleteMessage={noop}
         onOpenProfile={noop}
@@ -521,6 +542,7 @@ describe("MessageBubble media lightbox", () => {
         display="list"
         directory={meDirectory}
         onToggleReaction={noop}
+        onReply={noop}
         onEditMessage={noop}
         onDeleteMessage={noop}
         onOpenProfile={noop}
@@ -540,6 +562,7 @@ describe("MessageBubble media lightbox", () => {
         display="list"
         directory={meDirectory}
         onToggleReaction={noop}
+        onReply={noop}
         onEditMessage={noop}
         onDeleteMessage={noop}
         onOpenProfile={noop}
@@ -555,6 +578,217 @@ describe("MessageBubble media lightbox", () => {
     // second (default-mocked) call succeeds, so the zoom button appears.
     expect(invalidateStorageUrlMock).toHaveBeenCalledWith("cid-img");
     await waitFor(() => getByLabelText("shot.png を全画面表示"));
+  });
+});
+
+describe("MessageBubble replies", () => {
+  const directory = { "did:key:zpeer": { displayName: "Bobby", updatedAt: 1 } };
+
+  function replyMsg(over?: Partial<ChatMessage>): ChatMessage {
+    return msg({ id: "reply1", parentId: "orig1", text: "sure, sounds good", ...over });
+  }
+
+  it("clicking the reply action calls onReply with this message's id", () => {
+    const onReply = vi.fn();
+    const { getByLabelText } = render(
+      <MessageBubble
+        message={msg({ id: "m1" })}
+        isOwn={false}
+        localId="me"
+        display="list"
+        directory={directory}
+        onToggleReaction={noop}
+        onReply={onReply}
+        onEditMessage={noop}
+        onDeleteMessage={noop}
+        onOpenProfile={noop}
+        onMaximize={noop}
+      />,
+    );
+    fireEvent.click(getByLabelText("返信"));
+    expect(onReply).toHaveBeenCalledWith("m1");
+  });
+
+  it("a reply renders the quoted parent's author and a truncated plain-text snippet (not markdown)", () => {
+    const parent = msg({
+      id: "orig1",
+      fromId: "did:key:zpeer",
+      fromName: "Bob",
+      text: "*bold* " + "a".repeat(100),
+    });
+    const { getByText, container } = render(
+      <MessageBubble
+        message={replyMsg()}
+        parentMessage={parent}
+        isOwn={false}
+        localId="me"
+        display="list"
+        directory={directory}
+        onToggleReaction={noop}
+        onReply={noop}
+        onEditMessage={noop}
+        onDeleteMessage={noop}
+        onOpenProfile={noop}
+        onMaximize={noop}
+      />,
+    );
+    // Directory name wins, same resolution rule as the sender header.
+    const quote = container.querySelector(".reply-quote");
+    expect(quote).toBeTruthy();
+    expect(getByText("Bobby", { selector: ".reply-quote-name" })).toBeTruthy();
+    const snippet = container.querySelector(".reply-quote-snippet");
+    // Truncated well under the 107-char source, with a trailing ellipsis —
+    // and the literal "*bold*" markers prove it was never markdown-rendered.
+    expect(snippet?.textContent?.length).toBeLessThan(70);
+    expect(snippet?.textContent?.endsWith("…")).toBe(true);
+    expect(snippet?.textContent).toContain("*bold*");
+  });
+
+  it("falls back to the 'original not available' text when the parent isn't known locally", () => {
+    const { getByText } = render(
+      <MessageBubble
+        message={replyMsg()}
+        parentMessage={undefined}
+        isOwn={false}
+        localId="me"
+        display="list"
+        directory={directory}
+        onToggleReaction={noop}
+        onReply={noop}
+        onEditMessage={noop}
+        onDeleteMessage={noop}
+        onOpenProfile={noop}
+        onMaximize={noop}
+      />,
+    );
+    expect(getByText("元のメッセージは利用できません")).toBeTruthy();
+    // The reply's own body still renders normally regardless of the missing parent.
+    expect(getByText("sure, sounds good")).toBeTruthy();
+  });
+
+  it("a deleted parent's quote reuses the same wording as a deleted message row", () => {
+    const parent = msg({
+      id: "orig1",
+      fromId: "did:key:zpeer",
+      fromName: "Bob",
+      deleted: true,
+      text: undefined,
+    });
+    const { getByText } = render(
+      <MessageBubble
+        message={replyMsg()}
+        parentMessage={parent}
+        isOwn={false}
+        localId="me"
+        display="list"
+        directory={directory}
+        onToggleReaction={noop}
+        onReply={noop}
+        onEditMessage={noop}
+        onDeleteMessage={noop}
+        onOpenProfile={noop}
+        onMaximize={noop}
+      />,
+    );
+    expect(getByText("このメッセージは削除されました")).toBeTruthy();
+  });
+
+  it("clicking the quoted header calls onJumpToMessage with the parent's id", () => {
+    const onJumpToMessage = vi.fn();
+    const parent = msg({ id: "orig1", fromId: "did:key:zpeer", fromName: "Bob", text: "original" });
+    const { getByLabelText } = render(
+      <MessageBubble
+        message={replyMsg()}
+        parentMessage={parent}
+        isOwn={false}
+        localId="me"
+        display="list"
+        directory={directory}
+        onToggleReaction={noop}
+        onReply={noop}
+        onEditMessage={noop}
+        onDeleteMessage={noop}
+        onOpenProfile={noop}
+        onMaximize={noop}
+        onJumpToMessage={onJumpToMessage}
+      />,
+    );
+    fireEvent.click(getByLabelText("元のメッセージにジャンプ"));
+    expect(onJumpToMessage).toHaveBeenCalledWith("orig1");
+  });
+
+  it("a non-reply message (parentId null) renders no quoted header", () => {
+    const { container } = render(
+      <MessageBubble
+        message={msg({})}
+        isOwn={false}
+        localId="me"
+        display="list"
+        directory={directory}
+        onToggleReaction={noop}
+        onReply={noop}
+        onEditMessage={noop}
+        onDeleteMessage={noop}
+        onOpenProfile={noop}
+        onMaximize={noop}
+      />,
+    );
+    expect(container.querySelector(".reply-quote")).toBeNull();
+  });
+
+  it("carries data-message-id on its root row (jump-to-message target)", () => {
+    const { container } = render(
+      <MessageBubble
+        message={msg({ id: "target-1" })}
+        isOwn={false}
+        localId="me"
+        display="list"
+        directory={directory}
+        onToggleReaction={noop}
+        onReply={noop}
+        onEditMessage={noop}
+        onDeleteMessage={noop}
+        onOpenProfile={noop}
+        onMaximize={noop}
+      />,
+    );
+    expect(container.querySelector('[data-message-id="target-1"]')).toBeTruthy();
+  });
+
+  it("applies the flash highlight class only when flash is true", () => {
+    const { container, rerender } = render(
+      <MessageBubble
+        message={msg({ id: "m1" })}
+        isOwn={false}
+        localId="me"
+        display="list"
+        directory={directory}
+        onToggleReaction={noop}
+        onReply={noop}
+        onEditMessage={noop}
+        onDeleteMessage={noop}
+        onOpenProfile={noop}
+        onMaximize={noop}
+      />,
+    );
+    expect(container.querySelector(".msg-row--flash")).toBeNull();
+    rerender(
+      <MessageBubble
+        message={msg({ id: "m1" })}
+        isOwn={false}
+        localId="me"
+        display="list"
+        directory={directory}
+        flash
+        onToggleReaction={noop}
+        onReply={noop}
+        onEditMessage={noop}
+        onDeleteMessage={noop}
+        onOpenProfile={noop}
+        onMaximize={noop}
+      />,
+    );
+    expect(container.querySelector(".msg-row--flash")).toBeTruthy();
   });
 });
 
@@ -598,5 +832,24 @@ describe("groupPosAt", () => {
     expect(groupPosAt(ms, 0)).toBe("single");
     expect(groupPosAt(ms, 1)).toBe("single");
     expect(groupPosAt(ms, 2)).toBe("single");
+  });
+
+  it("a reply never continues a group — it always starts its own (first/single), never middle/last", () => {
+    const ms = stream(["a", 0], ["a", 1000]);
+    ms[1] = { ...ms[1], parentId: "orig1" };
+    // The message before a reply loses its "next" continuation.
+    expect(groupPosAt(ms, 0)).toBe("single");
+    // The reply itself, with no message after it, is single too.
+    expect(groupPosAt(ms, 1)).toBe("single");
+  });
+
+  it("a normal message right after a reply from the same sender continues the reply's new group", () => {
+    const ms = stream(["a", 0], ["a", 1000], ["a", 2000]);
+    ms[1] = { ...ms[1], parentId: "orig1" };
+    expect(groupPosAt(ms, 0)).toBe("single");
+    // The reply starts a fresh group (needs its own quoted header)...
+    expect(groupPosAt(ms, 1)).toBe("first");
+    // ...and a plain follow-up from the same sender still attaches under it.
+    expect(groupPosAt(ms, 2)).toBe("last");
   });
 });

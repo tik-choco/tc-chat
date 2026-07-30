@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { Fragment } from "preact";
 import type { ChatMessage, ChatDisplay } from "../lib/chatStore";
-import type { ProfileDirectory } from "../lib/profileDirectory";
+import { identityFor, type ProfileDirectory } from "../lib/profileDirectory";
 import type { Peer } from "../hooks/usePresence";
 import type { TcStorageFileEntry } from "../interop/tcStorageFiles";
-import { Hash, Globe, User, UserPlus, AlertTriangle, Pencil } from "lucide-preact";
+import { Hash, Globe, User, UserPlus, AlertTriangle, Pencil, CornerUpLeft, X } from "lucide-preact";
 import { Avatar } from "./Avatar";
-import { MessageBubble, groupPosAt } from "./MessageBubble";
+import { MessageBubble, groupPosAt, replySnippet } from "./MessageBubble";
 import { MessageInput } from "./MessageInput";
 import { CallControls } from "./CallControls";
 import { CallDock } from "./CallDock";
@@ -18,7 +19,48 @@ import type { useScreenShare } from "../hooks/useScreenShare";
 import type { useVideoCall } from "../hooks/useVideoCall";
 import { loadMediaCaution, saveMediaCaution } from "../lib/chatStore";
 import { GLOBAL_ROOM_ID } from "../lib/util";
-import { useT } from "../lib/i18n";
+import { useT, type TFunc } from "../lib/i18n";
+
+// How long a jumped-to message stays visually flashed (see chat.css's
+// .msg-row--flash / .bubble-row--flash) before returning to normal.
+const JUMP_FLASH_MS = 1500;
+
+/** Local-calendar-day equality — never raw ms/86400000 arithmetic, since two
+ * timestamps 24h apart can still fall on the same or different local dates
+ * depending on time-of-day (and this must track the viewer's own timezone/DST,
+ * not UTC). */
+function isSameLocalDay(a: number, b: number): boolean {
+  const da = new Date(a);
+  const db = new Date(b);
+  return (
+    da.getFullYear() === db.getFullYear() &&
+    da.getMonth() === db.getMonth() &&
+    da.getDate() === db.getDate()
+  );
+}
+
+/**
+ * Whether a date-divider belongs immediately before `messages[i]` — always
+ * before the first message, and again whenever its local calendar date
+ * differs from the message right before it. Exported standalone (pure, no
+ * hooks) so it's directly testable without rendering all of ChatWindow's
+ * call/voice/video hook-shaped props.
+ */
+export function needsDateDivider(messages: ChatMessage[], i: number): boolean {
+  if (i === 0) return true;
+  return !isSameLocalDay(messages[i - 1].timestamp, messages[i].timestamp);
+}
+
+/** Today/Yesterday get dedicated strings; anything older falls back to the
+ * browser's own locale-aware date format (no i18n key needed there). */
+export function dateDividerLabel(timestamp: number, t: TFunc): string {
+  const now = Date.now();
+  if (isSameLocalDay(timestamp, now)) return t("chat.dateToday");
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (isSameLocalDay(timestamp, yesterday.getTime())) return t("chat.dateYesterday");
+  return new Date(timestamp).toLocaleDateString();
+}
 
 export function ChatWindow(props: {
   roomId: string;
@@ -37,7 +79,12 @@ export function ChatWindow(props: {
   /** Names of peers currently typing in this room (empty in the global room). */
   typingNames: string[];
   onTyping: () => void;
-  onSendText: (text: string) => void;
+  /** `replyToId` is the quoted message's id — a reply is an ordinary
+   * `tc-chat:post` wire with `parentId` set (see useChatRoom.sendText), so
+   * omitting it keeps every existing caller (e.g. sendInviteDm) working
+   * unchanged. ChatWindow itself supplies this from its own reply-bar state;
+   * it does not come from MessageInput (which stays reply-agnostic). */
+  onSendText: (text: string, replyToId?: string | null) => void;
   onSendFile: (file: File) => void;
   onSendStoredFile: (entry: TcStorageFileEntry) => void;
   onToggleReaction: (targetId: string, emoji: string) => void;
@@ -90,6 +137,51 @@ export function ChatWindow(props: {
   // One dialog instance here covers both actions; `pendingAction` records
   // which start to actually run once the user confirms.
   const [pendingAction, setPendingAction] = useState<"camera" | "screen" | null>(null);
+
+  // The message currently being replied to (its id) — lives here, not in
+  // MessageInput, so MessageInput stays reply-agnostic and unchanged; sending
+  // closes over this and clears it afterward. Switching rooms also clears it,
+  // since a reply target from the old room's message list makes no sense here.
+  const [replyToId, setReplyToId] = useState<string | null>(null);
+  // The message id currently flashed after a jump-to-message click (see
+  // jumpToMessage below); cleared automatically after JUMP_FLASH_MS.
+  const [flashId, setFlashId] = useState<string | null>(null);
+  const flashTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    setReplyToId(null);
+    setFlashId(null);
+  }, [roomId]);
+
+  useEffect(
+    () => () => {
+      if (flashTimeoutRef.current !== null) window.clearTimeout(flashTimeoutRef.current);
+    },
+    [],
+  );
+
+  // ChatWindow (not MessageBubble) holds every message in the room, so it's
+  // the one place that can resolve a reply's quoted parent without a lookup
+  // living inside MessageBubble itself.
+  const messagesById = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
+  const replyTarget = replyToId ? messagesById.get(replyToId) : undefined;
+
+  function handleSendText(text: string) {
+    onSendText(text, replyToId);
+    setReplyToId(null);
+  }
+
+  function jumpToMessage(id: string) {
+    const el = scrollRef.current?.querySelector<HTMLElement>(`[data-message-id="${id}"]`);
+    // Not currently rendered (e.g. aged out past the 500-post cap) — nothing
+    // to scroll to; the quote header itself already degraded to the
+    // "original not available" text in that case.
+    if (!el) return;
+    el.scrollIntoView({ block: "center" });
+    setFlashId(id);
+    if (flashTimeoutRef.current !== null) window.clearTimeout(flashTimeoutRef.current);
+    flashTimeoutRef.current = window.setTimeout(() => setFlashId(null), JUMP_FLASH_MS);
+  }
 
   function startVideoCall() {
     // Camera-on implies being in the call: join voice too if not already
@@ -254,20 +346,30 @@ export function ChatWindow(props: {
         />
         {messages.length === 0 && <p class="chat-empty">{t("chat.noMessages")}</p>}
         {messages.map((m, i) => (
-          <MessageBubble
-            key={m.id}
-            message={m}
-            isOwn={m.fromId === localNodeId}
-            localId={localNodeId}
-            display={chatDisplay}
-            directory={directory}
-            groupPos={groupPosAt(messages, i)}
-            onToggleReaction={onToggleReaction}
-            onEditMessage={onEditMessage}
-            onDeleteMessage={onDeleteMessage}
-            onOpenProfile={onOpenProfile}
-            onMaximize={setLightboxKey}
-          />
+          <Fragment key={m.id}>
+            {needsDateDivider(messages, i) && (
+              <div class="date-divider" role="separator">
+                <span class="date-divider-label">{dateDividerLabel(m.timestamp, t)}</span>
+              </div>
+            )}
+            <MessageBubble
+              message={m}
+              isOwn={m.fromId === localNodeId}
+              localId={localNodeId}
+              display={chatDisplay}
+              directory={directory}
+              groupPos={groupPosAt(messages, i)}
+              parentMessage={m.parentId ? messagesById.get(m.parentId) : undefined}
+              flash={flashId === m.id}
+              onToggleReaction={onToggleReaction}
+              onReply={setReplyToId}
+              onEditMessage={onEditMessage}
+              onDeleteMessage={onDeleteMessage}
+              onOpenProfile={onOpenProfile}
+              onMaximize={setLightboxKey}
+              onJumpToMessage={jumpToMessage}
+            />
+          </Fragment>
         ))}
       </div>
 
@@ -277,10 +379,34 @@ export function ChatWindow(props: {
         </p>
       )}
 
+      {replyTarget && (
+        <div class="reply-bar">
+          <CornerUpLeft size={14} class="reply-bar-icon" aria-hidden="true" />
+          <div class="reply-bar-info">
+            <span class="reply-bar-label">
+              {t("chat.replyingTo", {
+                name: identityFor(directory, replyTarget.fromId, replyTarget.fromName).name,
+              })}
+            </span>
+            <span class="reply-bar-snippet">{replySnippet(replyTarget, t)}</span>
+          </div>
+          <button
+            type="button"
+            class="reply-bar-cancel"
+            aria-label={t("chat.replyCancel")}
+            title={t("chat.replyCancel")}
+            onClick={() => setReplyToId(null)}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       <MessageInput
+        roomId={roomId}
         disabled={!ready}
         onTyping={onTyping}
-        onSendText={onSendText}
+        onSendText={handleSendText}
         onSendFile={onSendFile}
         onSendStoredFile={onSendStoredFile}
       />

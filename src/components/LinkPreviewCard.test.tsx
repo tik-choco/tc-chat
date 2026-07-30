@@ -115,6 +115,7 @@ describe("MessageBubble text linkification", () => {
         onToggleReaction={noop}
         onEditMessage={noop}
         onDeleteMessage={noop}
+        onReply={noop}
         onOpenProfile={noop}
         onMaximize={noop}
       />,
@@ -138,6 +139,7 @@ describe("MessageBubble text linkification", () => {
         onToggleReaction={noop}
         onEditMessage={noop}
         onDeleteMessage={noop}
+        onReply={noop}
         onOpenProfile={noop}
         onMaximize={noop}
       />,

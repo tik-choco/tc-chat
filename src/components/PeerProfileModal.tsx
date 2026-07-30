@@ -1,10 +1,11 @@
 import { useState } from "preact/hooks";
-import { X, BadgeCheck, UserPlus, Check } from "lucide-preact";
+import { X, BadgeCheck, UserPlus, Check, VolumeX, Volume2 } from "lucide-preact";
 import type { ProfileDirectory } from "../lib/profileDirectory";
 import type { FriendStatus } from "../lib/friendsStore";
 import { shortDid } from "../lib/util";
 import { useT } from "../lib/i18n";
 import { Avatar } from "./Avatar";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 /**
  * Read-only profile card for ANOTHER participant, opened by clicking their
@@ -26,6 +27,10 @@ export function PeerProfileModal(props: {
   onAcceptRequest: () => void;
   onDeclineRequest: () => void;
   onCancelRequest: () => void;
+  /** Whether this peer is on the local mute list (see muteStore). */
+  muted: boolean;
+  onMute: (name: string) => void;
+  onUnmute: () => void;
   onClose: () => void;
 }) {
   const {
@@ -38,10 +43,14 @@ export function PeerProfileModal(props: {
     onAcceptRequest,
     onDeclineRequest,
     onCancelRequest,
+    muted,
+    onMute,
+    onUnmute,
     onClose,
   } = props;
   const t = useT();
   const [copied, setCopied] = useState(false);
+  const [confirmMute, setConfirmMute] = useState(false);
 
   const entry = directory[did];
   const name = entry?.displayName?.trim() || fallbackName || t("account.participant");
@@ -59,7 +68,11 @@ export function PeerProfileModal(props: {
   }
 
   return (
-    <div class="modal-overlay" onClick={onClose}>
+    // Close only on a click that landed on the backdrop itself. The mute
+    // ConfirmDialog below renders its own (fixed) overlay nested inside this
+    // one, so a plain `onClick={onClose}` would see its backdrop clicks bubble
+    // up and tear down this card along with the dialog.
+    <div class="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div class="modal profile-panel" onClick={(e) => e.stopPropagation()}>
         <header class="modal-header">
           <h2>
@@ -97,6 +110,8 @@ export function PeerProfileModal(props: {
           <p class="peer-bio peer-bio--empty">{t("account.noBio")}</p>
         )}
 
+        {muted && <p class="peer-muted-notice">{t("moderation.mutedNotice")}</p>}
+
         <div class="modal-actions">
           {!isSelf && friendStatus === null && (
             <button type="button" class="btn-ghost" onClick={() => onSendRequest(name)}>
@@ -128,11 +143,36 @@ export function PeerProfileModal(props: {
               <Check size={14} /> {t("friends.added")}
             </button>
           )}
+          {/* Muting yourself would silently hide your own posts, so the local
+              user's own card never offers it. */}
+          {!isSelf &&
+            (muted ? (
+              <button type="button" class="btn-ghost" onClick={onUnmute}>
+                <Volume2 size={14} /> {t("moderation.unmuteAction")}
+              </button>
+            ) : (
+              <button type="button" class="btn-ghost" onClick={() => setConfirmMute(true)}>
+                <VolumeX size={14} /> {t("moderation.muteAction")}
+              </button>
+            ))}
           <button type="button" class="send-btn" onClick={onClose}>
             {t("common.close")}
           </button>
         </div>
       </div>
+
+      {confirmMute && (
+        <ConfirmDialog
+          title={t("moderation.confirmTitle")}
+          message={t("moderation.confirmBody", { name })}
+          confirmLabel={t("moderation.confirmMute")}
+          onConfirm={() => {
+            setConfirmMute(false);
+            onMute(name);
+          }}
+          onCancel={() => setConfirmMute(false)}
+        />
+      )}
     </div>
   );
 }

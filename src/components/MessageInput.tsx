@@ -1,4 +1,4 @@
-import { useRef, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import type { JSX } from "preact";
 import { Paperclip, Archive, Send, ImagePlay } from "lucide-preact";
 import { loadTcStorageFiles, type TcStorageFileEntry } from "../interop/tcStorageFiles";
@@ -6,13 +6,20 @@ import { StoragePicker } from "./StoragePicker";
 import { VoiceRecorder } from "./VoiceRecorder";
 import { GifPicker } from "./GifPicker";
 import { useT } from "../lib/i18n";
+import { clearDraft, loadDraft, saveDraft } from "../lib/draftStore";
 
 // Auto-grow cap: roughly 6 lines of text at the input's font/line-height,
 // plus its vertical padding. Kept in sync with the max-height set on
 // .text-input in chat.css — that CSS cap is the real backstop if this drifts.
 const MAX_TEXTAREA_HEIGHT = 140;
 
+// Draft writes land on localStorage (synchronous, on the typing path), so
+// they're throttled rather than fired on every keystroke — same tradeoff as
+// the rest of this app's best-effort persistence.
+const DRAFT_SAVE_DEBOUNCE_MS = 400;
+
 export function MessageInput(props: {
+  roomId: string;
   disabled: boolean;
   onTyping?: () => void;
   onSendText: (text: string) => void;
@@ -20,7 +27,7 @@ export function MessageInput(props: {
   onSendStoredFile: (entry: TcStorageFileEntry) => void;
 }) {
   const t = useT();
-  const [text, setText] = useState("");
+  const [text, setText] = useState(() => loadDraft(props.roomId));
   const [showStoragePicker, setShowStoragePicker] = useState(false);
   // While the voice recorder is recording/previewing/erroring, it replaces
   // the rest of the input row (attach/text/send) instead of sitting beside it.
@@ -28,6 +35,46 @@ export function MessageInput(props: {
   const [showGifPicker, setShowGifPicker] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  // Mutable so the debounce callback and the unmount/room-switch flush always
+  // see the latest pending value without re-subscribing on every keystroke.
+  const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingDraftRef = useRef<{ roomId: string; text: string } | null>(null);
+
+  function flushPendingDraft() {
+    if (draftSaveTimer.current !== null) {
+      clearTimeout(draftSaveTimer.current);
+      draftSaveTimer.current = null;
+    }
+    if (pendingDraftRef.current) {
+      saveDraft(pendingDraftRef.current.roomId, pendingDraftRef.current.text);
+      pendingDraftRef.current = null;
+    }
+  }
+
+  // Re-seed the composer whenever the room changes: load the incoming room's
+  // saved draft, and — via the cleanup, which fires for the OLD roomId before
+  // the new one is applied — flush (don't drop) whatever was still pending
+  // for the room being left. The same cleanup covers the final unmount (e.g.
+  // the whole chat window closing), so the last debounced-but-unsaved
+  // characters aren't lost there either.
+  useEffect(() => {
+    setText(loadDraft(props.roomId));
+    return () => {
+      flushPendingDraft();
+    };
+  }, [props.roomId]);
+
+  function scheduleDraftSave(roomId: string, value: string) {
+    pendingDraftRef.current = { roomId, text: value };
+    if (draftSaveTimer.current !== null) clearTimeout(draftSaveTimer.current);
+    draftSaveTimer.current = setTimeout(() => {
+      draftSaveTimer.current = null;
+      if (pendingDraftRef.current) {
+        saveDraft(pendingDraftRef.current.roomId, pendingDraftRef.current.text);
+        pendingDraftRef.current = null;
+      }
+    }, DRAFT_SAVE_DEBOUNCE_MS);
+  }
 
   function resizeTextarea() {
     const el = textareaRef.current;
@@ -41,6 +88,14 @@ export function MessageInput(props: {
     if (!trimmed) return;
     props.onSendText(trimmed);
     setText("");
+    // A pending debounced save for this room would otherwise fire after send
+    // and resurrect the just-sent text as a "draft".
+    if (draftSaveTimer.current !== null) {
+      clearTimeout(draftSaveTimer.current);
+      draftSaveTimer.current = null;
+    }
+    pendingDraftRef.current = null;
+    clearDraft(props.roomId);
     // Collapse back to a single line; scrollHeight reflects the now-empty
     // value once the browser has applied the "auto" reset.
     const el = textareaRef.current;
@@ -143,6 +198,7 @@ export function MessageInput(props: {
               onInput={(e) => {
                 const value = (e.target as HTMLTextAreaElement).value;
                 setText(value);
+                scheduleDraftSave(props.roomId, value);
                 if (value.trim()) props.onTyping?.();
                 resizeTextarea();
               }}

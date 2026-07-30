@@ -14,6 +14,16 @@ const ja = {
   deleteMessageConfirm: "このメッセージを削除しますか？この操作は取り消せません。",
   viewProfile: "{name} のプロフィールを表示",
   verifiedAs: "検証済み: {did}",
+  // MessageBubble (reply quote — reply is an ordinary post with `parentId`
+  // set, so no wire change; see useChatRoom.sendText)
+  replyAction: "返信",
+  replyingTo: "{name} に返信",
+  replyCancel: "返信をキャンセル",
+  replyOriginalMissing: "元のメッセージは利用できません",
+  replyJump: "元のメッセージにジャンプ",
+  // ChatWindow (date separators)
+  dateToday: "今日",
+  dateYesterday: "昨日",
   // MessageInput
   attachFile: "ファイルを添付",
   pickFromStorage: "tc-storage から選択",
@@ -70,6 +80,13 @@ const en: typeof ja = {
   deleteMessageConfirm: "Delete this message? This can't be undone.",
   viewProfile: "View {name}'s profile",
   verifiedAs: "Verified: {did}",
+  replyAction: "Reply",
+  replyingTo: "Replying to {name}",
+  replyCancel: "Cancel reply",
+  replyOriginalMissing: "Original message not available",
+  replyJump: "Jump to original message",
+  dateToday: "Today",
+  dateYesterday: "Yesterday",
   attachFile: "Attach a file",
   pickFromStorage: "Choose from tc-storage",
   pickGif: "Send a GIF",
