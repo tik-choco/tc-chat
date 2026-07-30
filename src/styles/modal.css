@@ -329,6 +329,81 @@
   width: auto;
 }
 
+/* Names the room the per-room alert toggles above it apply to. */
+.settings-desc--room {
+  margin-bottom: 0.4rem;
+  font-weight: 600;
+  color: var(--text-h);
+  opacity: 1;
+}
+
+/* Muted-people list (see muteStore). One row per muted DID with an undo. */
+.settings-desc--empty {
+  margin-bottom: 0;
+  font-style: italic;
+}
+
+.settings-mutes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  /* A long mute list scrolls inside the section rather than pushing the rest
+     of the settings panel out of reach. */
+  max-height: 13rem;
+  overflow-y: auto;
+}
+
+.settings-mute-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+
+.settings-mute-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-mute-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-h);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-mute-did {
+  font-size: 0.72rem;
+  opacity: 0.6;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.settings-mute-unmute {
+  flex: none;
+  width: auto;
+}
+
+/* Peer profile card: the "you've muted this person" explainer. */
+.peer-muted-notice {
+  margin: 0 0 0.8rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  font-size: 0.78rem;
+  opacity: 0.8;
+}
+
 /* Language switcher: compact wrapping chips of endonyms. */
 .settings-options--languages {
   flex-direction: row;

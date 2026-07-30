@@ -1,0 +1,87 @@
+/* ---- Room history export (HistoryArchivePanel) ---- */
+.archive-panel {
+  max-width: 480px;
+}
+
+.archive-panel .archive-desc {
+  margin: 0 0 var(--space-2);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.archive-panel .archive-media-note {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+  color: var(--text-subtle);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.archive-panel .archive-empty {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-4) 0;
+  text-align: center;
+  color: var(--text-subtle);
+  font-size: 0.85rem;
+}
+
+/* Bounded so a long room list scrolls inside the modal instead of growing it
+   past the shared 88vh modal cap (see modal.css). */
+.archive-panel .archive-room-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 360px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.archive-panel .archive-room-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--bg);
+}
+
+.archive-panel .archive-room-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.archive-panel .archive-room-name {
+  font-weight: 600;
+  color: var(--text-h);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.archive-panel .archive-room-count {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.archive-panel .archive-download-btn {
+  flex: none;
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.archive-panel .archive-download-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

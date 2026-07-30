@@ -3,7 +3,8 @@ import { renderHook, act, waitFor } from "@testing-library/preact";
 import { usePostStream } from "./usePostStream";
 import { createDidIdentity, signStringWithDidIdentity } from "../crypto/didIdentity";
 import { decryptPostBytes, encryptPostBytes, generatePostEnc, isPostEnc } from "../crypto/postCipher";
-import { appendPost, appendWireLog, loadPosts } from "../lib/chatStore";
+import { appendPost, appendWireLog, loadPosts, loadWireLog } from "../lib/chatStore";
+import { mutePeer, unmutePeer, __resetMuteCacheForTests } from "../lib/muteStore";
 
 type EventListener = (
   eventType: number,
@@ -103,6 +104,9 @@ async function createRemotePeer() {
 describe("usePostStream", () => {
   beforeEach(() => {
     localStorage.clear();
+    // muteStore caches the list in a module-level Set; localStorage.clear()
+    // alone leaves a previous test's mutes live for the whole file.
+    __resetMuteCacheForTests();
     vi.clearAllMocks();
     eventListener = null;
     storedBytes = null;
@@ -1083,5 +1087,143 @@ describe("usePostStream", () => {
 
     expect(result.current.nodes[0].text).toBeUndefined();
     expect(result.current.nodes[0].fromId).toBe(author.did);
+  });
+
+  // Muting spans muteStore + this hook, so these cover the seam between them:
+  // the irreversible receive-side drop and the reversible render-side hide.
+  describe("muted peers", () => {
+    it("drops an incoming post from a muted peer entirely — not rendered, not stored, not logged for replay", async () => {
+      storedBytes = new TextEncoder().encode(JSON.stringify({ text: "spam" }));
+      const peer = await createRemotePeer();
+      mutePeer(peer.did, "Spammer");
+
+      const { result } = renderHook(() => usePostStream("room-1", "chat", "Alice"));
+      const unsigned = {
+        type: "tc-chat:post",
+        surface: "chat",
+        id: "spam-1",
+        parentId: null,
+        fromId: peer.did,
+        fromName: "Spammer",
+        timestamp: 500,
+        kind: "text",
+        cid: "cid-spam",
+      };
+      await act(async () => {
+        eventListener?.(0, peer.did, { ...unsigned, signature: await peer.sign(unsigned) });
+      });
+      await new Promise((r) => setTimeout(r, 30));
+
+      expect(result.current.nodes).toHaveLength(0);
+      // Nothing persisted, so unmuting later can't resurrect it — and the wire
+      // log stays clean so history-sync never replays it to anyone either.
+      expect(loadPosts("chat", "room-1")).toHaveLength(0);
+      expect(loadWireLog("room-1")).toHaveLength(0);
+    });
+
+    it("still accepts posts from everyone else while a peer is muted", async () => {
+      storedBytes = new TextEncoder().encode(JSON.stringify({ text: "hello" }));
+      const muted = await createRemotePeer();
+      const other = await createRemotePeer();
+      mutePeer(muted.did, "Spammer");
+
+      const { result } = renderHook(() => usePostStream("room-1", "chat", "Alice"));
+      const unsigned = {
+        type: "tc-chat:post",
+        surface: "chat",
+        id: "ok-1",
+        parentId: null,
+        fromId: other.did,
+        fromName: "Carol",
+        timestamp: 600,
+        kind: "text",
+        cid: "cid-ok",
+      };
+      await act(async () => {
+        eventListener?.(0, other.did, { ...unsigned, signature: await other.sign(unsigned) });
+      });
+      await waitFor(() => expect(result.current.nodes).toHaveLength(1));
+      expect(result.current.nodes[0].fromName).toBe("Carol");
+    });
+
+    it("hides a muted peer's already-stored posts, and restores them on unmute", async () => {
+      const peer = await createRemotePeer();
+      appendPost({
+        id: "old-1",
+        roomId: "room-1",
+        surface: "chat",
+        parentId: null,
+        fromId: peer.did,
+        fromName: "Bob",
+        timestamp: 100,
+        kind: "text",
+        cid: "cid-old",
+        text: "posted before the mute",
+        reactions: [],
+      });
+
+      const { result, rerender } = renderHook(() => usePostStream("room-1", "chat", "Alice"));
+      await waitFor(() => expect(result.current.nodes).toHaveLength(1));
+
+      await act(async () => {
+        mutePeer(peer.did, "Bob");
+      });
+      rerender();
+      expect(result.current.nodes).toHaveLength(0);
+      // Hidden, never deleted — the history is still on disk.
+      expect(loadPosts("chat", "room-1")).toHaveLength(1);
+
+      await act(async () => {
+        unmutePeer(peer.did);
+      });
+      rerender();
+      expect(result.current.nodes).toHaveLength(1);
+      expect(result.current.nodes[0].text).toBe("posted before the mute");
+    });
+
+    it("drops a muted peer's reaction but keeps applying their delete (a mute never pins retracted content)", async () => {
+      const peer = await createRemotePeer();
+      appendPost({
+        id: "target-1",
+        roomId: "room-1",
+        surface: "chat",
+        parentId: null,
+        fromId: peer.did,
+        fromName: "Bob",
+        timestamp: 100,
+        kind: "text",
+        cid: "cid-target",
+        text: "mine",
+        reactions: [],
+      });
+      mutePeer(peer.did, "Bob");
+      renderHook(() => usePostStream("room-1", "chat", "Alice"));
+
+      const reaction = {
+        type: "tc-chat:reaction",
+        id: "r-1",
+        targetId: "target-1",
+        emoji: "👍",
+        op: "add",
+        fromId: peer.did,
+        fromName: "Bob",
+        timestamp: 200,
+      };
+      const del = {
+        type: "tc-chat:post-delete",
+        surface: "chat",
+        id: "d-1",
+        targetId: "target-1",
+        fromId: peer.did,
+        fromName: "Bob",
+        timestamp: 300,
+      };
+      await act(async () => {
+        eventListener?.(0, peer.did, { ...reaction, signature: await peer.sign(reaction) });
+        eventListener?.(0, peer.did, { ...del, signature: await peer.sign(del) });
+      });
+      await waitFor(() => expect(loadPosts("chat", "room-1")[0].deleted).toBe(true));
+      expect(loadPosts("chat", "room-1")[0].reactions).toHaveLength(0);
+    });
   });
 });

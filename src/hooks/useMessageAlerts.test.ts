@@ -7,6 +7,8 @@ import {
   signStringWithDidIdentity,
 } from "../crypto/didIdentity";
 import { appendPost, loadPosts, loadWireLog } from "../lib/chatStore";
+import { mutePeer, __resetMuteCacheForTests } from "../lib/muteStore";
+import { setRoomAlerts, __resetRoomAlertCacheForTests } from "../lib/roomNotifyStore";
 import type { Friend } from "../lib/friendsStore";
 import { generatePostEnc, encryptPostBytes } from "../crypto/postCipher";
 import { storage_get } from "../lib/mistClient";
@@ -156,6 +158,10 @@ describe("useMessageAlerts", () => {
 
   beforeEach(async () => {
     localStorage.clear();
+    // muteStore keeps a module-level Set cache that localStorage.clear() alone
+    // wouldn't drop, so a mute from one case would leak into the next.
+    __resetMuteCacheForTests();
+    __resetRoomAlertCacheForTests();
     vi.clearAllMocks();
     eventListener = null;
     FakeNotification.instances = [];
@@ -179,6 +185,83 @@ describe("useMessageAlerts", () => {
     });
 
     await waitFor(() => expect(result.current.unread["room-b"]).toBe(1));
+  });
+
+  it("raises no badge, no notification and stores nothing for a muted peer", async () => {
+    const peer = await createRemotePeer();
+    mutePeer(peer.did, "Spammer");
+    // A DM, so this would otherwise be the loudest possible case: unread badge,
+    // desktop notification AND background persistence.
+    const { result } = renderHook(() =>
+      useMessageAlerts("room-a", selfDid, [friendFixture(peer.did)]),
+    );
+
+    const wire = await signedChatPost(peer);
+    await act(async () => {
+      eventListener?.(0, "transport", wire, "dm-1");
+      await new Promise((r) => setTimeout(r, 30));
+    });
+
+    expect(result.current.unread["dm-1"]).toBeUndefined();
+    expect(FakeNotification.instances).toHaveLength(0);
+    expect(loadPosts("chat", "dm-1")).toHaveLength(0);
+  });
+
+  // Silencing a room gates ONLY the two alerting side effects, and each one
+  // independently — the wire is still verified and still persisted. That's the
+  // whole difference from muting a person (above), and it spans roomNotifyStore
+  // + this hook, so it's covered here rather than in either one's own tests.
+  describe("per-room alert settings", () => {
+    it("suppresses the unread badge but still stores the message when badges are off", async () => {
+      const peer = await createRemotePeer();
+      setRoomAlerts("dm-1", { badge: false });
+      const { result } = renderHook(() =>
+        useMessageAlerts("room-a", selfDid, [friendFixture(peer.did)]),
+      );
+
+      const wire = await signedChatPost(peer);
+      await act(async () => {
+        eventListener?.(0, "transport", wire, "dm-1");
+        await new Promise((r) => setTimeout(r, 30));
+      });
+
+      expect(result.current.unread["dm-1"]).toBeUndefined();
+      // Delivery is untouched — the DM is there when the user opens it, and a
+      // notification still fires because only `badge` was turned off.
+      expect(loadPosts("chat", "dm-1")).toHaveLength(1);
+      expect(FakeNotification.instances).toHaveLength(1);
+    });
+
+    it("suppresses the desktop notification but still badges and stores when notifications are off", async () => {
+      const peer = await createRemotePeer();
+      setRoomAlerts("dm-1", { notify: false });
+      const { result } = renderHook(() =>
+        useMessageAlerts("room-a", selfDid, [friendFixture(peer.did)]),
+      );
+
+      const wire = await signedChatPost(peer);
+      await act(async () => {
+        eventListener?.(0, "transport", wire, "dm-1");
+        await new Promise((r) => setTimeout(r, 30));
+      });
+
+      expect(FakeNotification.instances).toHaveLength(0);
+      await waitFor(() => expect(result.current.unread["dm-1"]).toBe(1));
+      expect(loadPosts("chat", "dm-1")).toHaveLength(1);
+    });
+
+    it("leaves an unrelated room's alerts alone", async () => {
+      const peer = await createRemotePeer();
+      setRoomAlerts("dm-1", { notify: false, badge: false });
+      const { result } = renderHook(() => useMessageAlerts("room-a", selfDid, []));
+
+      const wire = await signedChatPost(peer);
+      await act(async () => {
+        eventListener?.(0, "transport", wire, "room-b");
+      });
+
+      await waitFor(() => expect(result.current.unread["room-b"]).toBe(1));
+    });
   });
 
   it("ignores messages in the active room while the tab is visible", async () => {

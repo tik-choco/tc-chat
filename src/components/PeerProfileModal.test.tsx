@@ -6,13 +6,16 @@ afterEach(cleanup);
 
 const DID = "did:key:zpeer";
 
-// Convenience wrapper: every case wires all four friend-request callbacks so
-// individual tests only need to override/inspect the ones they care about.
+// Convenience wrapper: every case wires all four friend-request callbacks plus
+// the mute pair, so individual tests only need to override/inspect the ones
+// they care about.
 function renderModal(overrides: Partial<Parameters<typeof PeerProfileModal>[0]> = {}) {
   const onSendRequest = vi.fn();
   const onAcceptRequest = vi.fn();
   const onDeclineRequest = vi.fn();
   const onCancelRequest = vi.fn();
+  const onMute = vi.fn();
+  const onUnmute = vi.fn();
   const onClose = vi.fn();
   const utils = render(
     <PeerProfileModal
@@ -24,11 +27,23 @@ function renderModal(overrides: Partial<Parameters<typeof PeerProfileModal>[0]> 
       onAcceptRequest={onAcceptRequest}
       onDeclineRequest={onDeclineRequest}
       onCancelRequest={onCancelRequest}
+      muted={false}
+      onMute={onMute}
+      onUnmute={onUnmute}
       onClose={onClose}
       {...overrides}
     />,
   );
-  return { ...utils, onSendRequest, onAcceptRequest, onDeclineRequest, onCancelRequest, onClose };
+  return {
+    ...utils,
+    onSendRequest,
+    onAcceptRequest,
+    onDeclineRequest,
+    onCancelRequest,
+    onMute,
+    onUnmute,
+    onClose,
+  };
 }
 
 describe("PeerProfileModal", () => {

@@ -53,6 +53,14 @@ export const fr: Messages = {
   },
 
   chat: {
+    // Quote replies + day dividers
+    replyAction: "Répondre",
+    replyingTo: "Réponse à {name}",
+    replyCancel: "Annuler la réponse",
+    replyOriginalMissing: "Le message d'origine n'est plus disponible",
+    replyJump: "Aller au message d'origine",
+    dateToday: "Aujourd'hui",
+    dateYesterday: "Hier",
     // MessageBubble (media body)
     mediaLoadFailed: "Impossible de charger ce fichier",
     fullscreen: "Afficher en plein écran",
@@ -423,5 +431,55 @@ export const fr: Messages = {
     bannerUnjoined: "Ce salon n'est pas encore dans ta liste",
     bannerJoin: "Ajouter le salon",
     bannerDismiss: "Fermer",
+  },
+  moderation: {
+    muteAction: "Masquer",
+    unmuteAction: "Ne plus masquer",
+    mutedBadge: "Masquée",
+    mutedNotice:
+      "Tu as masqué cette personne. Ses nouvelles publications et notifications ne te parviendront pas.",
+    settingsTitle: "Personnes masquées",
+    settingsDesc:
+      "Masquer quelqu'un empêche ses nouvelles publications et réactions de te parvenir et cache celles que tu as déjà. Tu peux annuler à tout moment.",
+    settingsEmpty: "Tu n'as masqué personne",
+    settingsCount: "{count} masquée(s)",
+    confirmTitle: "Masquer cette personne ?",
+    confirmBody:
+      "« {name} » sera masqué·e. Tu ne recevras plus ses nouvelles publications et celles que tu as déjà seront cachées.",
+    confirmMute: "Masquer",
+  },
+  notifications: {
+    roomAlertsTitle: "Notifications par salon",
+    roomAlertsDesc:
+      "Mettre un salon en sourdine n'arrête pas ses publications : elles arrivent et sont enregistrées comme d'habitude. Seules les notifications du bureau et le compteur de non-lus s'arrêtent (c'est différent de masquer une personne).",
+    notifyLabel: "Notifications du bureau",
+    notifyDesc: "Ne pas afficher de notification pour les nouvelles publications de ce salon.",
+    badgeLabel: "Compteur de non-lus",
+    badgeDesc: "Ne pas afficher le nombre de non-lus de ce salon dans la barre latérale.",
+    silencedBadge: "En sourdine",
+    toggleAria: "Modifier les notifications de « {room} »",
+    settingsEmpty: "Tu n'as mis aucun salon en sourdine",
+    settingsCount: "{count} salons en sourdine",
+    allEnabled: "Notifications par défaut",
+  },
+  archive: {
+    title: "Sauvegarde de l'historique",
+    desc: "Télécharge l'historique de chaque salon conservé dans ce navigateur sous forme de fichier JSON.",
+    openPanel: "Sauvegarde de l'historique",
+    download: "Télécharger",
+    postCount: "{count} publications",
+    empty: "Aucune publication pour l'instant",
+    noRooms: "Tu n'as rejoint aucun salon",
+    mediaNote:
+      "Le contenu des images et des fichiers n'est pas inclus — seule une référence (CID) est enregistrée.",
+  },
+  search: {
+    title: "Rechercher des messages",
+    placeholder: "Saisis un mot-clé…",
+    empty: "Saisis quelque chose à rechercher",
+    noResults: "Aucun message correspondant",
+    resultsCount: "{count} résultats",
+    openAction: "Ouvrir",
+    openPanel: "Rechercher des messages",
   },
 };

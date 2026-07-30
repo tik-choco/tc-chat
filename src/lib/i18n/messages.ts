@@ -9,6 +9,10 @@ import { onboarding } from "./catalog/onboarding";
 import { friends } from "./catalog/friends";
 import { calendar } from "./catalog/calendar";
 import { invite } from "./catalog/invite";
+import { moderation } from "./catalog/moderation";
+import { search } from "./catalog/search";
+import { notifications } from "./catalog/notifications";
+import { archive } from "./catalog/archive";
 
 /**
  * The full message tree, assembled from the per-domain catalogs. `ja` is the
@@ -28,6 +32,10 @@ export const ja = {
   friends: friends.ja,
   calendar: calendar.ja,
   invite: invite.ja,
+  moderation: moderation.ja,
+  search: search.ja,
+  notifications: notifications.ja,
+  archive: archive.ja,
 };
 
 export const en: Messages = {
@@ -42,6 +50,10 @@ export const en: Messages = {
   friends: friends.en,
   calendar: calendar.en,
   invite: invite.en,
+  moderation: moderation.en,
+  search: search.en,
+  notifications: notifications.en,
+  archive: archive.en,
 };
 
 export type Messages = typeof ja;

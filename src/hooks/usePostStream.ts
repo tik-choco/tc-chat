@@ -9,7 +9,7 @@
 // point their CID straight at the file bytes. Reactions ride their own tiny
 // signed wire and are merged from a shared per-room index. Every signed wire is
 // logged (appendWireLog) so a late joiner can replay verifiable history.
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import {
   getNode,
   subscribeEvent,
@@ -45,6 +45,8 @@ import {
   type PostEnc,
 } from "../crypto/postCipher";
 import { shouldRelayRoom, AUTO_FETCH_MAX_BYTES, noteBody, releasePost, sweepRoom } from "../lib/relayCache";
+import { isMuted } from "../lib/muteStore";
+import { useMutes } from "./useMutes";
 
 // Generic storage name for every encrypted blob (post body JSON, thumbnails,
 // media/file bytes) so no filename/type leaks into the plaintext manifest
@@ -149,6 +151,12 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
   const [nodes, setNodes] = useState<PostNode[]>([]);
   const localNameRef = useRef(localName);
   localNameRef.current = localName;
+  // Muting has two halves (see muteStore.ts). This is the reversible one:
+  // posts already stored from a peer who was muted later are filtered out of
+  // what this hook hands to the renderer, so unmuting brings them straight
+  // back. The irreversible half — dropping a muted peer's *incoming* wires
+  // before they're ever stored — lives in the receive handlers below.
+  const { mutedDids } = useMutes();
 
   useEffect(() => {
     if (!roomId) {
@@ -174,6 +182,10 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
           console.warn("discarding post with invalid signature", wire.id);
           return;
         }
+        // A muted peer's post is dropped outright — not stored, not logged for
+        // replay, not fetched from the swarm. Checked after the signature so
+        // `fromId` is known to belong to whoever signed the wire.
+        if (isMuted(wire.fromId)) return;
         appendWireLog(roomId!, wire);
         const identity = await ensureDidIdentity();
         // wire.enc is untrusted input off the wire — validate its shape
@@ -254,6 +266,9 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
           console.warn("discarding reaction with invalid signature", wire.id);
           return;
         }
+        // Same drop as posts: a muted peer can't put an emoji on our screen.
+        // Edits and deletes are deliberately NOT dropped (see below).
+        if (isMuted(wire.fromId)) return;
         appendWireLog(roomId!, wire);
         const identity = await ensureDidIdentity();
         if (cancelled) return;
@@ -273,6 +288,12 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
       }
     }
 
+    // Edits and deletes from a muted peer are applied normally, unlike their
+    // posts and reactions. Both only ever amend or remove that peer's OWN
+    // content (enforced by applyPostEdit/applyPostDelete's author check), so
+    // honouring them keeps local state truthful about content the peer has
+    // retracted — and a mute exists to stop someone reaching you, never to
+    // pin their words in place after they've deleted them.
     async function hydratePostEdit(wire: PostEditWire) {
       try {
         if (!(await verifyWire(wire))) {
@@ -747,5 +768,24 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
     setNodes(loadPosts(surface, roomId));
   }
 
-  return { nodes, createPost, createMedia, createStoredFile, toggleReaction, editPost, deletePost };
+  // Hide a muted peer's already-stored posts. Kept out of `nodes`' own state so
+  // muting/unmuting re-filters without re-reading storage, and so nothing is
+  // ever destroyed — unmuting restores the history intact. On the board this
+  // also hides a muted author's whole thread, since buildForest promotes the
+  // orphaned replies of a filtered-out parent to roots (their own authors'
+  // words stay readable).
+  const visibleNodes = useMemo(
+    () => (mutedDids.size === 0 ? nodes : nodes.filter((n) => !mutedDids.has(n.fromId))),
+    [nodes, mutedDids],
+  );
+
+  return {
+    nodes: visibleNodes,
+    createPost,
+    createMedia,
+    createStoredFile,
+    toggleReaction,
+    editPost,
+    deletePost,
+  };
 }

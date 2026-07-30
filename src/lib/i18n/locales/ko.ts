@@ -52,6 +52,14 @@ export const ko: Messages = {
   },
 
   chat: {
+    // Quote replies + day dividers
+    replyAction: "답장",
+    replyingTo: "{name}에게 답장",
+    replyCancel: "답장 취소",
+    replyOriginalMissing: "원본 메시지를 볼 수 없어요",
+    replyJump: "원본 메시지로 이동",
+    dateToday: "오늘",
+    dateYesterday: "어제",
     // MessageBubble (media body)
     mediaLoadFailed: "파일을 불러오지 못했어요",
     fullscreen: "전체 화면으로 보기",
@@ -413,5 +421,52 @@ export const ko: Messages = {
     bannerUnjoined: "이 방은 아직 방 목록에 없어요",
     bannerJoin: "방 추가",
     bannerDismiss: "닫기",
+  },
+  moderation: {
+    muteAction: "차단",
+    unmuteAction: "차단 해제",
+    mutedBadge: "차단됨",
+    mutedNotice: "이 사용자를 차단했어요. 새 게시물과 알림이 도착하지 않아요.",
+    settingsTitle: "차단한 사용자",
+    settingsDesc:
+      "차단하면 상대의 새 게시물과 반응을 받지 않고, 기존 게시물도 숨겨져요. 언제든지 차단을 해제하면 모두 다시 보여요.",
+    settingsEmpty: "차단한 사용자가 없어요",
+    settingsCount: "{count}명 차단 중",
+    confirmTitle: "차단할까요?",
+    confirmBody: "'{name}'을(를) 차단해요. 새 게시물을 받지 않고, 기존 게시물도 숨겨져요.",
+    confirmMute: "차단",
+  },
+  notifications: {
+    roomAlertsTitle: "방별 알림 설정",
+    roomAlertsDesc:
+      "알림을 꺼도 이 방의 게시물은 평소처럼 도착하고 저장돼요. 멈추는 건 데스크톱 알림과 안 읽음 배지뿐이에요(사용자 차단과는 다른 기능이에요).",
+    notifyLabel: "데스크톱 알림",
+    notifyDesc: "이 방에 새 게시물이 와도 데스크톱 알림을 띄우지 않아요.",
+    badgeLabel: "안 읽음 배지",
+    badgeDesc: "이 방의 안 읽음 개수를 사이드바에 표시하지 않아요.",
+    silencedBadge: "알림 끔",
+    toggleAria: "'{room}'의 알림 설정 전환",
+    settingsEmpty: "알림을 끈 방이 없어요",
+    settingsCount: "{count}개 방에서 알림 끔",
+    allEnabled: "알림은 기본값",
+  },
+  archive: {
+    title: "기록 백업",
+    desc: "이 브라우저에 저장된 각 방의 기록을 JSON 파일로 내려받을 수 있어요.",
+    openPanel: "기록 백업",
+    download: "내려받기",
+    postCount: "게시물 {count}건",
+    empty: "게시물이 아직 없어요",
+    noRooms: "참가한 방이 없어요",
+    mediaNote: "이미지와 파일의 내용은 포함되지 않아요. 파일에 대한 참조(CID)만 기록돼요.",
+  },
+  search: {
+    title: "메시지 검색",
+    placeholder: "검색어를 입력하세요…",
+    empty: "찾고 싶은 검색어를 입력하세요",
+    noResults: "일치하는 메시지를 찾을 수 없어요",
+    resultsCount: "{count}건 찾았어요",
+    openAction: "열기",
+    openPanel: "메시지 검색",
   },
 };

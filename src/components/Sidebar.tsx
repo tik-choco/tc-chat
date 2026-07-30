@@ -15,6 +15,7 @@ import {
   UserPlus,
   CalendarPlus,
   RefreshCw,
+  Search,
 } from "lucide-preact";
 import type { RoomMeta } from "../lib/chatStore";
 import { isValidRoomId } from "../lib/chatStore";
@@ -38,6 +39,8 @@ export function Sidebar(props: {
   onOpenProfile: () => void;
   onOpenSettings: () => void;
   onOpenPersonalCalendar: () => void;
+  /** Opens the cross-room message search (see SearchPanel). */
+  onOpenSearch: () => void;
   rooms: RoomMeta[];
   /** The room's SHARED name/icon (set by any peer, synced to everyone) — falls
    * back to `room.name` (this peer's own local label) when absent. */
@@ -70,6 +73,7 @@ export function Sidebar(props: {
     onOpenProfile,
     onOpenSettings,
     onOpenPersonalCalendar,
+    onOpenSearch,
     rooms,
     roomMetaFor,
     activeRoomId,
@@ -160,6 +164,15 @@ export function Sidebar(props: {
         </span>
         <span class="sidebar-brand-name">TC Chat</span>
         <div class="sidebar-brand-actions">
+          <button
+            type="button"
+            class="theme-toggle"
+            title={t("search.openPanel")}
+            aria-label={t("search.openPanel")}
+            onClick={onOpenSearch}
+          >
+            <Search size={18} />
+          </button>
           <button
             type="button"
             class="theme-toggle"

@@ -1,0 +1,122 @@
+/* ---- Cross-room message search (SearchPanel) ---- */
+.search-panel {
+  max-width: 520px;
+}
+
+.search-input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  margin-bottom: var(--space-3);
+}
+
+.search-input-row:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+.search-input-icon {
+  flex: none;
+  color: var(--text-subtle);
+}
+
+.search-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+.search-state {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-4) 0;
+  text-align: center;
+  color: var(--text-subtle);
+  font-size: 0.85rem;
+}
+
+.search-results-count {
+  margin: 0 0 var(--space-2);
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+/* Bounded so a long result set scrolls inside the modal instead of growing it
+   past the viewport (the modal itself already caps at 88vh — this keeps the
+   list from being the thing that hits that ceiling). */
+.search-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 420px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.search-result {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.search-result:hover,
+.search-result:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.search-result-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin-bottom: 0.25rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.search-result-room {
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.search-result-surface {
+  padding: 0.05rem 0.4rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+
+.search-result-author {
+  opacity: 0.85;
+}
+
+.search-result-time {
+  margin-left: auto;
+  white-space: nowrap;
+  opacity: 0.7;
+}
+
+.search-result-snippet {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}

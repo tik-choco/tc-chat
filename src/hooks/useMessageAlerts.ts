@@ -33,6 +33,8 @@ import type { Friend } from "../lib/friendsStore";
 import { getLocale, translate } from "../lib/i18n";
 import { hashForRoomId } from "../lib/util";
 import { decryptPostBytes, isPostEnc, type PostEnc } from "../crypto/postCipher";
+import { isMuted } from "../lib/muteStore";
+import { shouldBadgeRoom, shouldNotifyRoom } from "../lib/roomNotifyStore";
 
 interface ChatPostWire extends Record<string, unknown> {
   type: "tc-chat:post";
@@ -161,7 +163,14 @@ export function useMessageAlerts(
       seen.add(wire.id);
 
       const isActive = roomId === activeRoomRef.current;
-      if (!isActive) {
+      // Silencing a room gates only the two alerting side effects — the badge
+      // here and the notification below — and each independently, so "badge but
+      // no popup" is expressible. Everything else in this function still runs:
+      // a silenced room is verified and persisted exactly as before. That's the
+      // whole distinction from muting a person (isMuted, above), which drops
+      // the wire outright. Don't hoist either check to the subscribeEvent
+      // callback — that would also skip the background-DM persistence below.
+      if (!isActive && shouldBadgeRoom(roomId)) {
         setUnread((u) => ({ ...u, [roomId]: (u[roomId] ?? 0) + 1 }));
       }
 
@@ -218,6 +227,7 @@ export function useMessageAlerts(
       }
 
       if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+      if (!shouldNotifyRoom(roomId)) return;
       const body = await snippetFor(wire);
       if (cancelled) return;
       const n = new Notification(friend.name || wire.fromName, { body, tag: wire.id });
@@ -286,6 +296,11 @@ export function useMessageAlerts(
         | null;
       if (decoded?.type === "tc-chat:post" && decoded.surface === "chat") {
         if (decoded.fromId === selfDid) return; // our own message, never "for me"
+        // A muted peer raises no badge and no notification, and their post is
+        // never persisted for a background room. usePostStream applies the
+        // same drop for the active room; deletes/edits below are deliberately
+        // exempt (they only ever retract the muted peer's own content).
+        if (isMuted(decoded.fromId)) return;
         // A message in the room on screen while the tab is visible needs neither
         // a badge nor a notification — the user is already looking at it.
         if (evtRoomId === activeRoomRef.current && !document.hidden) return;
