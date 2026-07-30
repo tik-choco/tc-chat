@@ -89,7 +89,8 @@ export function VoiceRecorder(props: {
       stopStream();
       revokePreview();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- cleanup-only, refs are stable
+    // Mount-only on purpose: this is cleanup-only, and everything it touches is
+    // held in refs, which are stable for the component's lifetime.
   }, []);
 
   // Tell MessageInput whether it should hide the rest of the input row.

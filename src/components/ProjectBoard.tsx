@@ -82,6 +82,11 @@ export function ProjectBoard(props: {
     if (prevFilter.current === filter) return;
     prevFilter.current = filter;
     setOpenThread(null);
+    // `setOpenThread` is `props.onOpenThread ?? setLocalThreadId`, so it's a new
+    // function reference on every render when the controlled prop is supplied
+    // — depending on it would re-run this on every render and defeat the
+    // prevFilter guard above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter]);
 
   // Clear the open thread once the node it points at DISAPPEARS (deleted
@@ -101,6 +106,9 @@ export function ProjectBoard(props: {
       openEverResolved.current = false;
       setOpenThread(null);
     }
+    // Same reason as the effect above: `setOpenThread` changes identity every
+    // render when `onOpenThread` is passed in.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openThreadId, roots]);
 
   function handleCreate(input: CreatePostInput) {

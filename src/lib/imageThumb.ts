@@ -64,7 +64,10 @@ export const internal = {
       try {
         bitmap = await createImageBitmap(file);
       } catch (err) {
-        throw new Error(`makeThumbnail: failed to decode image: ${(err as Error)?.message ?? err}`);
+        throw new Error(
+          `makeThumbnail: failed to decode image: ${(err as Error)?.message ?? err}`,
+          { cause: err },
+        );
       }
       return {
         width: bitmap.width,

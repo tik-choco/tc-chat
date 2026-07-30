@@ -10,6 +10,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "fetch-mistlib": "node scripts/fetch-mistlib.mjs",
+    "lint": "eslint .",
     "test": "vitest run"
   },
   "dependencies": {
@@ -19,13 +20,18 @@
     "qrcode-generator": "^2.0.4"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@preact/preset-vite": "^2.10.5",
     "@testing-library/preact": "^3.2.4",
     "@types/node": "^24.13.2",
     "@vitest/ui": "^4.1.9",
     "dotenv": "^16.4.7",
+    "eslint": "^10.8.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.8.0",
     "happy-dom": "^20.10.6",
     "typescript": "~6.0.2",
+    "typescript-eslint": "^8.65.0",
     "vite": "^8.1.1",
     "vitest": "^4.1.9"
   }
