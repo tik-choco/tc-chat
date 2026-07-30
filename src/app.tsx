@@ -18,6 +18,7 @@ import "./styles/gallery.css";
 import "./styles/markdown.css";
 import "./styles/search.css";
 import "./styles/archive.css";
+import "./styles/personal.css";
 
 import { UsernameGate } from "./components/UsernameGate";
 import { Sidebar } from "./components/Sidebar";
@@ -34,6 +35,7 @@ import { RoomInvitePanel } from "./components/RoomInvitePanel";
 import { JoinRoomBanner } from "./components/JoinRoomBanner";
 import { SearchPanel } from "./components/SearchPanel";
 import { HistoryArchivePanel } from "./components/HistoryArchivePanel";
+import { PersonalChat } from "./components/PersonalChat";
 import { useRooms } from "./hooks/useRooms";
 import { useFriends } from "./hooks/useFriends";
 import { useChatRoom } from "./hooks/useChatRoom";
@@ -44,6 +46,7 @@ import { usePostStream } from "./hooks/usePostStream";
 import { useCalendarEvents } from "./hooks/useCalendarEvents";
 import { useMediaGallery } from "./hooks/useMediaGallery";
 import { usePersonalEvents } from "./hooks/usePersonalEvents";
+import { usePersonalNotes } from "./hooks/usePersonalNotes";
 import { useHistorySync } from "./hooks/useHistorySync";
 import { useMessageAlerts } from "./hooks/useMessageAlerts";
 import { useProfile } from "./hooks/useProfile";
@@ -72,7 +75,13 @@ import {
 import { getNode, createMistStorageBackend } from "./lib/mistClient";
 import { identityFor } from "./lib/profileDirectory";
 import { ensureDidIdentity, ensureSharedDidIdentity } from "./crypto/didIdentity";
-import { GLOBAL_ROOM_ID, hashForLocation, locationFromHash, type AppLocation } from "./lib/util";
+import {
+  GLOBAL_ROOM_ID,
+  isPersonalRoom,
+  hashForLocation,
+  locationFromHash,
+  type AppLocation,
+} from "./lib/util";
 import type { PostSurface } from "./lib/chatStore";
 import type { SearchScopeRoom } from "./lib/postSearch";
 import { MAX_INVITE_NAME } from "./lib/roomInvite";
@@ -151,6 +160,13 @@ export function App() {
   const roomDisplayName = roomNameOverride || displayName;
 
   const { rooms, joinRoom, leaveRoom } = useRooms();
+  // The personal notes space occupies a room slot but is NOT a swarm topic
+  // (see PERSONAL_ROOM_ID). Every hook below that could reach the network is
+  // handed `null` while it's on screen, so nothing is joined, sent or
+  // received under this id. useChatRoom is the load-bearing one — it owns the
+  // only joinRoomAsync call in the app, so cutting it here is what makes the
+  // "never broadcast" promise structural rather than a matter of care.
+  const isPersonal = isPersonalRoom(activeRoomId);
   const {
     friends,
     sendFriendRequest,
@@ -158,8 +174,9 @@ export function App() {
     declineFriendRequest,
     cancelFriendRequest,
     removeFriend,
-  } = useFriends(activeRoomId, nodeId, roomDisplayName);
+  } = useFriends(isPersonal ? null : activeRoomId, nodeId, roomDisplayName);
   const personalEvents = usePersonalEvents();
+  const personalNotes = usePersonalNotes();
   const {
     status,
     peers,
@@ -172,7 +189,7 @@ export function App() {
     deleteMessage,
     typingNames,
     notifyTyping,
-  } = useChatRoom(username ? activeRoomId : null, roomDisplayName);
+  } = useChatRoom(username && !isPersonal ? activeRoomId : null, roomDisplayName);
   // The board is the "board" surface of the same post engine — recursive
   // (parentId), so a comment is just a post whose parentId points at another.
   const {
@@ -416,12 +433,15 @@ export function App() {
   const invitedName = pendingInvite?.roomId === activeRoomId ? pendingInvite.name : null;
   // The shared name (set by any peer, synced via useRoomMeta) wins over this
   // peer's own local room label; DMs and the global room never have one.
-  const roomName =
-    (!isDm && sharedRoomMeta?.name) ||
-    activeRoom?.name ||
-    invitedName ||
-    (activeFriend ? identityFor(directory, activeFriend.did, activeFriend.name).name : undefined) ||
-    activeRoomId;
+  const roomName = isPersonal
+    ? t("personal.title")
+    : (!isDm && sharedRoomMeta?.name) ||
+      activeRoom?.name ||
+      invitedName ||
+      (activeFriend
+        ? identityFor(directory, activeFriend.did, activeFriend.name).name
+        : undefined) ||
+      activeRoomId;
   // Everything worth searching: the room list, every accepted friend's DM (a
   // DM's id is derived, never in `rooms` — see friendsStore), and the room on
   // screen even when it's a link-only room that was never added to the list.
@@ -431,7 +451,10 @@ export function App() {
       .filter((f) => f.status === "accepted")
       .map((f) => ({ id: f.roomId, name: identityFor(directoryFor(f.roomId), f.did, f.name).name })),
   ];
-  if (!searchRooms.some((r) => r.id === activeRoomId)) {
+  // The personal space is deliberately out of scope: postSearch reads
+  // chatStore's localStorage post lists, and notes live in the OPFS KV store
+  // instead — including it would only ever add a room that never matches.
+  if (!isPersonal && !searchRooms.some((r) => r.id === activeRoomId)) {
     searchRooms.push({ id: activeRoomId, name: roomName });
   }
 
@@ -444,14 +467,18 @@ export function App() {
   }));
 
   const canEditRoomIdentity = status === "joined" && activeRoomId !== GLOBAL_ROOM_ID && !isDm;
-  const canInvite = activeRoomId !== GLOBAL_ROOM_ID && !isDm;
+  // There is nobody to invite to a space only this device can see.
+  const canInvite = activeRoomId !== GLOBAL_ROOM_ID && !isDm && !isPersonal;
   // A room reached by link (invite or plain deep link) is fully usable without
   // being in the room list — the swarm join follows the URL — so the only thing
   // missing is a way back to it later. Offer to add it rather than doing it
   // silently; DMs and the global room are always reachable, so they never ask.
+  // The personal space is never in `rooms` either, but it's built in rather
+  // than link-reached — there is nothing to join.
   const showJoinBanner =
     activeRoomId !== GLOBAL_ROOM_ID &&
     !isDm &&
+    !isPersonal &&
     !activeRoom &&
     !joinDismissed.includes(activeRoomId);
 
@@ -514,83 +541,100 @@ export function App() {
           onClick={() => setSidebarOpen(false)}
         />
       )}
-      <RoomContent
-        tab={roomTab}
-        onChangeTab={setRoomTab}
-        onOpenSidebar={() => setSidebarOpen(true)}
-        banner={
-          showJoinBanner ? (
-            <JoinRoomBanner
-              roomName={roomName}
-              invited={invitedName !== null}
-              onJoin={handleJoinActiveRoom}
-              onDismiss={() => setJoinDismissed((ids) => [...ids, activeRoomId])}
-            />
-          ) : null
-        }
-        chatWindowProps={{
-          roomId: activeRoomId,
-          roomName,
-          roomIconCid: isDm ? undefined : sharedRoomMeta?.iconCid,
-          isDm,
-          localNodeId: nodeId,
-          messages,
-          ready: status === "joined",
-          chatDisplay,
-          directory,
-          peers,
-          selfName: roomDisplayName,
-          typingNames,
-          onTyping: notifyTyping,
-          onSendText: sendText,
-          onSendFile: sendFile,
-          onSendStoredFile: sendStoredFile,
-          onToggleReaction: toggleChatReaction,
-          onEditMessage: editMessage,
-          onDeleteMessage: deleteMessage,
-          onOpenProfile: (did, name) => setPeerProfile({ did, name }),
-          onEditSelfRoomName: () => setRoomNameOpen(true),
-          onEditRoomIdentity: canEditRoomIdentity ? () => setRoomIdentityOpen(true) : undefined,
-          onInvite: canInvite ? () => setInviteRoomId(activeRoomId) : undefined,
-          voice,
-          screenShare,
-          videoCall,
-        }}
-        boardProps={{
-          roomName,
-          localNodeId: nodeId,
-          nodes,
-          ready: status === "joined",
-          directory,
-          onCreate: createNode,
-          onToggleReaction: toggleBoardReaction,
-          onEdit: editNode,
-          onDelete: deleteNode,
-          openThreadId: boardThreadId,
-          onOpenThread: setBoardThreadId,
-        }}
-        calendarProps={{
-          roomName,
-          localNodeId: nodeId,
-          events,
-          ready: status === "joined",
-          directory,
-          onCreate: createEvent,
-          onEdit: editEvent,
-          onDelete: deleteEvent,
-        }}
-        galleryProps={{
-          roomName,
-          localNodeId: nodeId,
-          items: gallery.items,
-          ready: status === "joined",
-          directory,
-          onAddFiles: gallery.addFiles,
-          onAddStoredFile: gallery.addStoredFile,
-          onToggleReaction: gallery.toggleReaction,
-          onDelete: gallery.deleteItem,
-        }}
-      />
+      {isPersonal ? (
+        // A single surface, not the four-tab room shell: the board/calendar/
+        // gallery tabs are all backed by the swarm-fed post engine, which this
+        // space deliberately isn't wired to.
+        <PersonalChat
+          notes={personalNotes.notes}
+          ready={personalNotes.ready}
+          error={personalNotes.error}
+          onDismissError={personalNotes.dismissError}
+          onOpenSidebar={() => setSidebarOpen(true)}
+          onAddText={personalNotes.addText}
+          onAddAttachment={personalNotes.addAttachment}
+          onEditNote={personalNotes.editNote}
+          onRemoveNote={personalNotes.removeNote}
+        />
+      ) : (
+        <RoomContent
+          tab={roomTab}
+          onChangeTab={setRoomTab}
+          onOpenSidebar={() => setSidebarOpen(true)}
+          banner={
+            showJoinBanner ? (
+              <JoinRoomBanner
+                roomName={roomName}
+                invited={invitedName !== null}
+                onJoin={handleJoinActiveRoom}
+                onDismiss={() => setJoinDismissed((ids) => [...ids, activeRoomId])}
+              />
+            ) : null
+          }
+          chatWindowProps={{
+            roomId: activeRoomId,
+            roomName,
+            roomIconCid: isDm ? undefined : sharedRoomMeta?.iconCid,
+            isDm,
+            localNodeId: nodeId,
+            messages,
+            ready: status === "joined",
+            chatDisplay,
+            directory,
+            peers,
+            selfName: roomDisplayName,
+            typingNames,
+            onTyping: notifyTyping,
+            onSendText: sendText,
+            onSendFile: sendFile,
+            onSendStoredFile: sendStoredFile,
+            onToggleReaction: toggleChatReaction,
+            onEditMessage: editMessage,
+            onDeleteMessage: deleteMessage,
+            onOpenProfile: (did, name) => setPeerProfile({ did, name }),
+            onEditSelfRoomName: () => setRoomNameOpen(true),
+            onEditRoomIdentity: canEditRoomIdentity ? () => setRoomIdentityOpen(true) : undefined,
+            onInvite: canInvite ? () => setInviteRoomId(activeRoomId) : undefined,
+            voice,
+            screenShare,
+            videoCall,
+          }}
+          boardProps={{
+            roomName,
+            localNodeId: nodeId,
+            nodes,
+            ready: status === "joined",
+            directory,
+            onCreate: createNode,
+            onToggleReaction: toggleBoardReaction,
+            onEdit: editNode,
+            onDelete: deleteNode,
+            openThreadId: boardThreadId,
+            onOpenThread: setBoardThreadId,
+          }}
+          calendarProps={{
+            roomName,
+            localNodeId: nodeId,
+            events,
+            ready: status === "joined",
+            directory,
+            onCreate: createEvent,
+            onEdit: editEvent,
+            onDelete: deleteEvent,
+          }}
+          galleryProps={{
+            roomName,
+            localNodeId: nodeId,
+            items: gallery.items,
+            ready: status === "joined",
+            directory,
+            onAddFiles: gallery.addFiles,
+            onAddStoredFile: gallery.addStoredFile,
+            onToggleReaction: gallery.toggleReaction,
+            onDelete: gallery.deleteItem,
+          }}
+        />
+      )}
 
       {profileOpen && profile && (
         <ProfilePanel

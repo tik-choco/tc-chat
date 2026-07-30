@@ -17,6 +17,23 @@ export function formatBytes(bytes: number): string {
 
 export const GLOBAL_ROOM_ID = "global";
 
+/**
+ * The personal notes space. It occupies a slot in the room list and switches
+ * like a room, but it is NOT a swarm topic: nothing is ever joined, signed,
+ * broadcast or replayed under this id (see personalNotesStore.ts).
+ *
+ * The colon is load-bearing. `isValidRoomId` (chatStore) accepts only
+ * `[A-Za-z0-9_-]`, so this string can never be typed into the join form or
+ * reached by a shared invite link — it cannot collide with a real room the
+ * way a bare word like "personal" could. A hand-crafted URL hash can still
+ * land here, which is harmless: it only ever opens the visitor's own notes.
+ */
+export const PERSONAL_ROOM_ID = "tc-chat:personal";
+
+export function isPersonalRoom(roomId: string | null): boolean {
+  return roomId === PERSONAL_ROOM_ID;
+}
+
 /** The four surfaces of a room, in the order the tab bar shows them. */
 export const ROOM_TABS = ["chat", "board", "calendar", "gallery"] as const;
 export type RoomTab = (typeof ROOM_TABS)[number];

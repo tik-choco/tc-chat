@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   GLOBAL_ROOM_ID,
+  PERSONAL_ROOM_ID,
+  isPersonalRoom,
   hashForLocation,
   hashForRoomId,
   locationFromHash,
@@ -100,5 +102,33 @@ describe("newId", () => {
   it("round-trips a generated id through the hash", () => {
     const id = newId();
     expect(roomIdFromHash(hashForRoomId(id))).toBe(id);
+  });
+});
+
+describe("the personal notes space", () => {
+  // The sentinel doubles as a room id, so the one thing that must never
+  // happen is a real room shadowing it (or being shadowed by it) and
+  // silently losing its swarm. isValidRoomId is what guarantees that:
+  // rejecting the sentinel means it can't be typed into the join form or
+  // carried by an invite link.
+  it("cannot be reached as a joinable room id", () => {
+    expect(isValidRoomId(PERSONAL_ROOM_ID)).toBe(false);
+  });
+
+  it("is not the global room", () => {
+    expect(PERSONAL_ROOM_ID).not.toBe(GLOBAL_ROOM_ID);
+    expect(isPersonalRoom(GLOBAL_ROOM_ID)).toBe(false);
+  });
+
+  it("recognises only its own id", () => {
+    expect(isPersonalRoom(PERSONAL_ROOM_ID)).toBe(true);
+    expect(isPersonalRoom("personal")).toBe(false);
+    expect(isPersonalRoom(null)).toBe(false);
+  });
+
+  // Deep links still resolve it — harmless, since it only ever opens the
+  // visitor's own notes — so the hash codec must survive the colon.
+  it("survives a round trip through the URL hash", () => {
+    expect(roomIdFromHash(hashForRoomId(PERSONAL_ROOM_ID))).toBe(PERSONAL_ROOM_ID);
   });
 });
