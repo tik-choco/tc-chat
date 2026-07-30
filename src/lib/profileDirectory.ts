@@ -29,9 +29,22 @@ export const EMPTY_DIRECTORY: ProfileDirectory = Object.freeze({});
 const KEY = "tc-chat:profile-directory:v2";
 // The directory accumulates every peer ever seen across every room, for the
 // app's whole lifetime, with no natural cap — bound it so a long-lived
-// install can't grow this key without limit. Least-recently-updated entries
-// (by `updatedAt`), across the WHOLE store, are evicted first.
-const MAX_ENTRIES = 500;
+// install can't grow this key without limit.
+//
+// This is a TWO-level bound, not a single global entry count: a naive global
+// cap (evict the globally oldest (roomId, did) pair) lets one busy room's
+// churn evict a quiet room's entries entirely, silently blanking every
+// peer's display name/avatar in that quiet room (see CLAUDE.md's "Room-scoped
+// identity" gotcha). Instead:
+//   - MAX_ENTRIES_PER_ROOM bounds each room independently, evicting that
+//     room's own oldest `updatedAt` entries first — a busy room can only ever
+//     evict itself.
+//   - MAX_ROOMS bounds how many rooms are retained at all, evicting whole
+//     rooms — least-recently-active first (by that room's newest
+//     `updatedAt`), not the room with the fewest entries — so the key still
+//     can't grow without limit.
+const MAX_ENTRIES_PER_ROOM = 200;
+const MAX_ROOMS = 50;
 
 export function loadDirectoryStore(): DirectoryStore {
   try {
@@ -57,37 +70,81 @@ export function mergeProfile(
   const existing = store[roomId]?.[did];
   if (existing && existing.updatedAt >= profile.updatedAt) return store;
 
-  const nextRoom: ProfileDirectory = { ...store[roomId], [did]: profile };
-  let next: DirectoryStore = { ...store, [roomId]: nextRoom };
-
-  // Enforce MAX_ENTRIES total (roomId, did) pairs across the whole store.
-  const triples: Array<{ roomId: string; did: string; updatedAt: number }> = [];
-  for (const [rId, room] of Object.entries(next)) {
-    for (const [d, p] of Object.entries(room)) {
-      triples.push({ roomId: rId, did: d, updatedAt: p.updatedAt });
-    }
-  }
-  if (triples.length > MAX_ENTRIES) {
-    triples.sort((a, b) => a.updatedAt - b.updatedAt);
-    const toEvict = triples.slice(0, triples.length - MAX_ENTRIES);
-    const rebuilt: DirectoryStore = {};
-    for (const [rId, room] of Object.entries(next)) {
-      rebuilt[rId] = { ...room };
-    }
-    for (const { roomId: rId, did: d } of toEvict) {
-      delete rebuilt[rId][d];
-    }
-    for (const rId of Object.keys(rebuilt)) {
-      if (Object.keys(rebuilt[rId]).length === 0) delete rebuilt[rId];
-    }
-    next = rebuilt;
-  }
+  const nextRoom = evictRoomEntries({ ...store[roomId], [did]: profile }, did);
+  const next = pruneEmptyRooms(evictRooms({ ...store, [roomId]: nextRoom }, roomId));
 
   try {
     localStorage.setItem(KEY, JSON.stringify(next));
   } catch (error) {
     console.warn("tc-chat: failed to persist profile directory", error);
   }
+  return next;
+}
+
+/**
+ * Per-room bound: once a room exceeds MAX_ENTRIES_PER_ROOM, evicts that
+ * room's own oldest-`updatedAt` entries first — never another room's, since
+ * this only ever sees the one room's dict. `keepDid` (the entry just merged)
+ * is always spared, so a fresh write can never evict itself.
+ */
+function evictRoomEntries(room: ProfileDirectory, keepDid: string): ProfileDirectory {
+  const entries = Object.entries(room);
+  if (entries.length <= MAX_ENTRIES_PER_ROOM) return room;
+
+  entries.sort(([, a], [, b]) => a.updatedAt - b.updatedAt);
+  const next = { ...room };
+  let toDrop = entries.length - MAX_ENTRIES_PER_ROOM;
+  for (const [d] of entries) {
+    if (toDrop <= 0) break;
+    if (d === keepDid) continue;
+    delete next[d];
+    toDrop--;
+  }
+  return next;
+}
+
+/**
+ * Cross-room bound: once more than MAX_ROOMS rooms are tracked, evicts whole
+ * rooms — least-recently-active first (that room's newest `updatedAt`, not
+ * its entry count) — rather than a global per-entry count, so a busy room's
+ * churn can never blank out a quiet room's names (the CLAUDE.md gotcha this
+ * two-level scheme replaces). `keepRoomId` (the room just merged into) is
+ * always spared.
+ */
+function evictRooms(store: DirectoryStore, keepRoomId: string): DirectoryStore {
+  const roomIds = Object.keys(store);
+  if (roomIds.length <= MAX_ROOMS) return store;
+
+  const byLastActive = roomIds
+    .filter((rId) => rId !== keepRoomId)
+    .map((rId) => ({
+      roomId: rId,
+      lastActive: Math.max(...Object.values(store[rId]).map((p) => p.updatedAt)),
+    }))
+    .sort((a, b) => a.lastActive - b.lastActive);
+
+  const next = { ...store };
+  let toDrop = roomIds.length - MAX_ROOMS;
+  for (const { roomId: rId } of byLastActive) {
+    if (toDrop <= 0) break;
+    delete next[rId];
+    toDrop--;
+  }
+  return next;
+}
+
+/**
+ * Drops any room left with zero entries. Neither eviction pass above should
+ * produce one (evictRoomEntries always spares the just-merged did; evictRooms
+ * drops whole rooms outright) — this is a defensive backstop against a store
+ * that already had a stray empty room (e.g. hand-edited storage) rather than
+ * something either pass relies on.
+ */
+function pruneEmptyRooms(store: DirectoryStore): DirectoryStore {
+  const empty = Object.keys(store).filter((rId) => Object.keys(store[rId]).length === 0);
+  if (empty.length === 0) return store;
+  const next = { ...store };
+  for (const rId of empty) delete next[rId];
   return next;
 }
 
