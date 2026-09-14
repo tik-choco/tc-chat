@@ -1,0 +1,11 @@
+.mist-app-frame { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.mist-app-content { flex: 1; min-height: 0; position: relative; }
+.mist-build-banner { flex: none; max-height: 45dvh; overflow: auto; background: #fff3cd; color: #4b3500; border-bottom: 1px solid #c49729; font: 12px/1.5 system-ui, sans-serif; }
+.mist-build-banner summary { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 6px 12px; cursor: pointer; }
+.mist-build-banner summary:focus-visible { outline: 2px solid #4b3500; outline-offset: -3px; }
+.mist-build-banner strong { letter-spacing: .05em; }
+.mist-build-more { margin-left: auto; text-decoration: underline; }
+.mist-build-details { padding: 0 12px 12px; }
+.mist-build-details p { margin: 8px 0; }
+.mist-build-details button { background: #fff; color: #4b3500; border: 1px solid #9b7418; border-radius: 4px; padding: 5px 10px; margin-right: 8px; cursor: pointer; }
+.mist-build-details pre { white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }

@@ -18,6 +18,7 @@ import {
   storage_add_pinned,
   type MediaEventPayload,
 } from "../vendor/mistlib/wrappers/web/index.js";
+import { captureMistBuildInfo, markMistLoadError } from "./mistBuildInfo";
 
 export {
   EVENT_NEIGHBORS,
@@ -95,7 +96,13 @@ export async function getNode(): Promise<InstanceType<typeof MistNode>> {
       // Only peers sharing the same invite salt/code discover each other, so
       // pass the family-wide namespace or this node meets no one.
       const n = new MistNode(localNodeId(), mistSignalingConfig());
-      await n.init();
+      try {
+        await n.init();
+      } catch (error) {
+        markMistLoadError();
+        throw error;
+      }
+      captureMistBuildInfo();
       n.onEvent((eventType, fromId, payload, roomId) => {
         eventListeners.forEach((l) => l(eventType, fromId, payload, roomId ?? ""));
       });
