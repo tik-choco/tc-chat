@@ -1,6 +1,7 @@
 import { render } from 'preact'
 import './index.css'
 import { App } from './app.tsx'
+import { MistBuildBanner } from './components/MistBuildBanner'
 import { LocaleProvider } from './lib/i18n'
 import { writeAppManifest } from './lib/appManifest'
 import { BUS_VERSION } from './lib/sharedBus'
@@ -8,7 +9,10 @@ import { registerServiceWorker } from './lib/swRegister'
 
 render(
   <LocaleProvider>
-    <App />
+    <div class="mist-app-frame">
+      <MistBuildBanner />
+      <div class="mist-app-content"><App /></div>
+    </div>
   </LocaleProvider>,
   document.getElementById('app')!,
 )
