@@ -1,7 +1,7 @@
-import { useEffect, useState } from "preact/hooks";
+import { useState } from "preact/hooks";
 import { X, HelpCircle, Bell, Volume2, BellOff, Download } from "lucide-preact";
 import { type ChatDisplay, loadGiphyApiKey, saveGiphyApiKey } from "../lib/chatStore";
-import { getMistBuildSnapshot, subscribeMistBuild } from "../lib/mistBuildInfo";
+import { MistBuildBanner } from "./MistBuildBanner";
 import type { NotifPermission } from "../hooks/useMessageAlerts";
 import type { MutedPeer } from "../lib/muteStore";
 import type { RoomAlertPrefs } from "../lib/roomNotifyStore";
@@ -54,13 +54,6 @@ export function SettingsPanel(props: {
     onClose,
     onOpenGuide,
   } = props;
-  const [mistBuild, setMistBuild] = useState(getMistBuildSnapshot);
-  useEffect(() => {
-    const update = () => setMistBuild(getMistBuildSnapshot());
-    const unsubscribe = subscribeMistBuild(update);
-    update();
-    return unsubscribe;
-  }, []);
   const t = useT();
   const { locale, setLocale } = useLocale();
   const [giphyKey, setGiphyKey] = useState(() => loadGiphyApiKey());
@@ -328,12 +321,7 @@ export function SettingsPanel(props: {
         </section>
 
         <section class="settings-section" aria-label="mistlib">
-          <p class="settings-desc">
-            <a href="https://github.com/tik-choco-lab/mistlib" target="_blank" rel="noopener noreferrer">
-              mistlib
-            </a>{" "}
-            {mistBuild.info?.version ?? "—"}
-          </p>
+          <MistBuildBanner view="settings" />
         </section>
 
         <div class="modal-actions">
