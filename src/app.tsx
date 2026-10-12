@@ -240,7 +240,8 @@ export function App() {
     setRoomMeta,
   } = useRoomMeta(status === "joined" ? activeRoomId : null);
 
-  const roomEscrow = useRoomEscrow(status === "joined" && eligibleRoom(activeRoomId) ? activeRoomId : null);
+  const roomEscrow = useRoomEscrow(status === "joined" && eligibleRoom(activeRoomId) ? activeRoomId : null,
+    nodeId ? friends.filter(f => f.status === "accepted").map(f => f.roomId) : []);
 
   useEffect(() => {
     if (!username) return;

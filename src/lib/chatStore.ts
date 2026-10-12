@@ -1,3 +1,4 @@
+import { evidenceJournal } from "../escrow/journal";
 // Local persistence for chat history and known rooms. mistlib is
 // content-addressed only (storage_add/storage_get by CID) — it has no
 // concept of a room's message "history", so each peer keeps its own
@@ -591,10 +592,15 @@ export function subscribeWireLog(listener: (roomId: string) => void): () => void
 
 /** Records a signed wire for later replay, deduped by wire id, newest kept. */
 export function appendWireLog(roomId: string, wire: SignedWire): void {
+  const evidenceChanged = evidenceJournal.record(roomId, wire);
   migrateLegacyWireLog(roomId);
   const bucket = wireBucket(wire);
   const log = loadWireLogBucket(bucket, roomId);
-  if (typeof wire.id === "string" && log.some((w) => w.id === wire.id)) return;
+  if (typeof wire.id === "string" && log.some((w) => w.id === wire.id)) {
+    // A distinct signed record with the same ID still changes checkpoint evidence.
+    if (evidenceChanged) for (const listener of wireLogListeners) listener(roomId);
+    return;
+  }
   saveWireLogBucket(bucket, roomId, [...log, wire]);
   for (const listener of wireLogListeners) listener(roomId);
 }

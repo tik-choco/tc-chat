@@ -26,6 +26,7 @@ import {
   appendWireLog,
   applyPostDelete,
   applyPostEdit,
+  applyReaction,
   type PostKind,
   type PostSurface,
 } from "../lib/chatStore";
@@ -35,6 +36,16 @@ import { hashForRoomId } from "../lib/util";
 import { decryptPostBytes, isPostEnc, type PostEnc } from "../crypto/postCipher";
 import { isMuted } from "../lib/muteStore";
 import { shouldBadgeRoom, shouldNotifyRoom } from "../lib/roomNotifyStore";
+
+function isPostSurface(surface: unknown): surface is PostSurface {
+  return surface === "chat" || surface === "board" || surface === "calendar" || surface === "gallery";
+}
+
+interface PostBody {
+  text?: string; title?: string; roles?: string[]; tags?: string[];
+  startsAt?: number; endsAt?: number; location?: string;
+  thumbCid?: string; thumbMimeType?: string; capacity?: number;
+}
 
 interface ChatPostWire extends Record<string, unknown> {
   type: "tc-chat:post";
@@ -156,10 +167,10 @@ export function useMessageAlerts(
     // rejoin) — count and notify each post id at most once per session.
     const seen = new Set<string>();
 
-    async function handlePost(wire: ChatPostWire, roomId: string) {
+    async function handlePost(wire: ChatPostWire, roomId: string, restored = false) {
       if (!(await verifyWire(wire))) return;
-      if (cancelled || seen.has(wire.id)) return;
-      seen.add(wire.id);
+      if (cancelled || !restored && seen.has(roomId + ":" + wire.id)) return;
+      if (!restored) seen.add(roomId + ":" + wire.id);
 
       const isActive = roomId === activeRoomRef.current;
       // Silencing a room gates only the two alerting side effects — the badge
@@ -169,7 +180,7 @@ export function useMessageAlerts(
       // whole distinction from muting a person (isMuted, above), which drops
       // the wire outright. Don't hoist either check to the subscribeEvent
       // callback — that would also skip the background-DM persistence below.
-      if (!isActive && shouldBadgeRoom(roomId)) {
+      if (wire.surface === "chat" && !restored && wire.fromId !== selfDid && !isActive && shouldBadgeRoom(roomId)) {
         setUnread((u) => ({ ...u, [roomId]: (u[roomId] ?? 0) + 1 }));
       }
 
@@ -189,18 +200,14 @@ export function useMessageAlerts(
           if (isPostEnc(wire.enc)) enc = wire.enc;
           else console.warn("discarding post with malformed enc", wire.id);
         }
-        let text: string | undefined;
+        let body: PostBody = {};
         if (wire.kind === "text" || wire.kind === "project" || wire.kind === "event") {
           try {
             const raw = await storage_get(wire.cid);
             // Legacy wires (no enc) are still plaintext CIDs; new wires carry
             // an encrypted blob keyed by the wire's enc envelope.
             const plain = enc ? await decryptPostBytes(enc, raw) : raw;
-            const body = JSON.parse(new TextDecoder().decode(plain)) as {
-              text?: string;
-              title?: string;
-            };
-            text = body.text;
+            body = JSON.parse(new TextDecoder().decode(plain)) as PostBody;
           } catch {
             // Body unfetchable/undecryptable right now; store the post shell anyway.
           }
@@ -209,7 +216,7 @@ export function useMessageAlerts(
         appendPost({
           id: wire.id,
           roomId,
-          surface: "chat",
+          surface: wire.surface,
           parentId: wire.parentId,
           fromId: wire.fromId,
           fromName: wire.fromName,
@@ -217,7 +224,16 @@ export function useMessageAlerts(
           kind: wire.kind,
           cid: wire.cid,
           enc,
-          text,
+          text: body.text,
+          title: body.title,
+          roles: body.roles,
+          tags: body.tags,
+          startsAt: body.startsAt,
+          endsAt: body.endsAt,
+          location: body.location,
+          thumbCid: body.thumbCid,
+          thumbMimeType: body.thumbMimeType,
+          capacity: body.capacity,
           mimeType: wire.mimeType,
           fileName: wire.fileName,
           fileSize: wire.fileSize,
@@ -225,6 +241,7 @@ export function useMessageAlerts(
         });
       }
 
+      if (wire.surface !== "chat" || restored || wire.fromId === selfDid) return;
       if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
       if (!shouldNotifyRoom(roomId)) return;
       const body = await snippetFor(wire);
@@ -242,18 +259,18 @@ export function useMessageAlerts(
     // usePostStream (mounted regardless of tab visibility) — applying it a
     // second time here would be redundant, not incorrect (both paths dedup
     // via appendWireLog/seen), so we skip it purely to avoid double work.
-    async function handleDelete(wire: ChatPostDeleteWire, roomId: string) {
+    async function handleDelete(wire: ChatPostDeleteWire, roomId: string, restored = false) {
       if (!(await verifyWire(wire))) return;
-      if (cancelled || seen.has(wire.id)) return;
-      seen.add(wire.id);
+      if (cancelled || !restored && seen.has(roomId + ":" + wire.id)) return;
+      if (!restored) seen.add(roomId + ":" + wire.id);
       appendWireLog(roomId, wire);
-      applyPostDelete("chat", roomId, wire.targetId, wire.fromId);
+      applyPostDelete(wire.surface, roomId, wire.targetId, wire.fromId);
     }
 
-    async function handleEdit(wire: ChatPostEditWire, roomId: string) {
+    async function handleEdit(wire: ChatPostEditWire, roomId: string, restored = false) {
       if (!(await verifyWire(wire))) return;
-      if (cancelled || seen.has(wire.id)) return;
-      seen.add(wire.id);
+      if (cancelled || !restored && seen.has(roomId + ":" + wire.id)) return;
+      if (!restored) seen.add(roomId + ":" + wire.id);
       appendWireLog(roomId, wire);
       let enc: PostEnc | undefined;
       if (wire.enc !== undefined) {
@@ -263,7 +280,7 @@ export function useMessageAlerts(
           return;
         }
       }
-      let body: { text?: string; title?: string; startsAt?: number; endsAt?: number; location?: string };
+      let body: PostBody;
       try {
         const raw = await storage_get(wire.cid);
         const plain = enc ? await decryptPostBytes(enc, raw) : raw;
@@ -274,28 +291,36 @@ export function useMessageAlerts(
         return;
       }
       if (cancelled) return;
-      applyPostEdit("chat", roomId, wire.targetId, wire.fromId, {
+      applyPostEdit(wire.surface, roomId, wire.targetId, wire.fromId, {
         cid: wire.cid,
         enc,
         text: body.text,
         title: body.title,
         editedAt: wire.timestamp,
+        editId: wire.id,
         startsAt: body.startsAt,
         endsAt: body.endsAt,
         location: body.location,
+        thumbCid: body.thumbCid,
+        thumbMimeType: body.thumbMimeType,
+        capacity: body.capacity,
       });
     }
 
     const unsubscribe = subscribeEvent((eventType, _fromId, payload, evtRoomId, restored) => {
-      if (restored) return;
       if (cancelled || !isRawEvent(eventType) || !evtRoomId) return;
       const decoded = decodeRawPayload(payload) as
         | ChatPostWire
         | ChatPostEditWire
         | ChatPostDeleteWire
         | null;
-      if (decoded?.type === "tc-chat:post" && decoded.surface === "chat") {
-        if (decoded.fromId === selfDid) return; // our own message, never "for me"
+      if (decoded && decoded.roomId !== undefined && decoded.roomId !== evtRoomId) return;
+      if (restored && (evtRoomId === activeRoomRef.current || !dmRoomsRef.current.has(evtRoomId))) return;
+      // Other surfaces share DM persistence/replay, while chat alone raises alerts.
+      if (decoded && decoded.surface !== undefined && decoded.surface !== "chat" &&
+          (evtRoomId === activeRoomRef.current || !dmRoomsRef.current.has(evtRoomId))) return;
+      if (decoded?.type === "tc-chat:post" && isPostSurface(decoded.surface)) {
+        if (decoded.fromId === selfDid && !dmRoomsRef.current.has(evtRoomId)) return;
         // A muted peer raises no badge and no notification, and their post is
         // never persisted for a background room. usePostStream applies the
         // same drop for the active room; deletes/edits below are deliberately
@@ -304,15 +329,24 @@ export function useMessageAlerts(
         // A message in the room on screen while the tab is visible needs neither
         // a badge nor a notification — the user is already looking at it.
         if (evtRoomId === activeRoomRef.current && !document.hidden) return;
-        handlePost(decoded, evtRoomId);
-      } else if (decoded?.type === "tc-chat:post-delete" && decoded.surface === "chat") {
+        return handlePost(decoded, evtRoomId, restored);
+      } else if ((decoded as { type?: string } | null)?.type === "tc-chat:reaction") {
+        if (evtRoomId === activeRoomRef.current || !dmRoomsRef.current.has(evtRoomId)) return;
+        return (async () => {
+          const wire = decoded as unknown as Record<string, unknown> & { id: string; fromId: string; fromName: string; targetId: string; emoji: string; op: "add" | "remove"; timestamp: number };
+          if (!await verifyWire(wire) || cancelled || isMuted(wire.fromId) || (wire.op !== "add" && wire.op !== "remove")) return;
+          appendWireLog(evtRoomId, wire);
+          applyReaction(evtRoomId, wire.targetId, { emoji: wire.emoji, fromId: wire.fromId, fromName: wire.fromName }, wire.op,
+            { timestamp: wire.timestamp, id: wire.id });
+        })();
+      } else if (decoded?.type === "tc-chat:post-delete" && isPostSurface(decoded.surface)) {
         // Unlike posts, this has no self-skip: a delete from our OWN did on
         // another device must still apply here.
         if (evtRoomId === activeRoomRef.current) return;
-        handleDelete(decoded, evtRoomId);
-      } else if (decoded?.type === "tc-chat:post-edit" && decoded.surface === "chat") {
+        return handleDelete(decoded, evtRoomId, restored);
+      } else if (decoded?.type === "tc-chat:post-edit" && isPostSurface(decoded.surface)) {
         if (evtRoomId === activeRoomRef.current) return;
-        handleEdit(decoded, evtRoomId);
+        return handleEdit(decoded, evtRoomId, restored);
       }
     });
 

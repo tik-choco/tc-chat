@@ -52,7 +52,7 @@ function wireOrder(a: SignedWire, b: SignedWire): number {
     (a.id! < b.id! ? -1 : a.id! > b.id! ? 1 : canonical(a) < canonical(b) ? -1 : canonical(a) > canonical(b) ? 1 : 0);
 }
 /** Retain newest history, pinning the winning shared setting even with an older timestamp. */
-function boundWires(c: RoomCheckpoint): void {
+export function boundWires(c: RoomCheckpoint): void {
   for (const b of BUCKETS) {
     const wires = c.buckets[b];
     if (wires.length <= MAX_WIRES_PER_BUCKET) continue;
@@ -68,7 +68,7 @@ function boundWires(c: RoomCheckpoint): void {
 export function logOrder(c: RoomCheckpoint): SignedWire[] {
   return BUCKETS.flatMap(b => c.buckets[b]).sort(wireOrder);
 }
-function canonical(v: unknown): string {
+export function canonical(v: unknown): string {
   if (Array.isArray(v)) return '[' + v.map(canonical).join(',') + ']';
   if (record(v)) return '{' + Object.keys(v).sort().filter(k => v[k] !== undefined).map(k => JSON.stringify(k) + ':' + canonical(v[k])).join(',') + '}';
   return JSON.stringify(v);
@@ -78,7 +78,7 @@ export async function unionWires(wires: SignedWire[]): Promise<SignedWire[]> {
   for (const w of wires) { const hash = await sha256(utf8(canonical(w))); if (!seen.has(hash)) { seen.add(hash); result.push(w); } }
   return result.sort(wireOrder);
 }
-function bucket(w: SignedWire): typeof BUCKETS[number] { if (w.type === 'tc-chat:escrow-config') return 'misc'; return BUCKETS.slice(0, 4).includes(w.surface as never) ? w.surface as typeof BUCKETS[number] : 'misc'; }
+export function bucket(w: SignedWire): typeof BUCKETS[number] { if (w.type === 'tc-chat:escrow-config') return 'misc'; return BUCKETS.slice(0, 4).includes(w.surface as never) ? w.surface as typeof BUCKETS[number] : 'misc'; }
 export async function mergeCheckpoints(a: RoomCheckpoint, b: RoomCheckpoint): Promise<RoomCheckpoint> {
   if (a.roomId !== b.roomId) throw new Error('Checkpoint room mismatch');
   const c = emptyCheckpoint(a.roomId);

@@ -70,6 +70,7 @@ export async function sendInviteDm(roomId: string, fromName: string, text: strin
   const timestamp = Date.now();
   const unsigned = {
     type: "tc-chat:post" as const,
+    roomId,
     surface: "chat" as const,
     id,
     parentId: null,

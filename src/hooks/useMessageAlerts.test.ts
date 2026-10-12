@@ -19,7 +19,7 @@ type EventListener = (
   payload: unknown,
   roomId?: string,
   restored?: boolean,
-) => void;
+) => void | Promise<void>;
 
 const sendMessage = vi.fn();
 const joinRoomAsync = vi.fn(async (_roomId: string) => {});
@@ -554,5 +554,50 @@ describe("useMessageAlerts", () => {
 
     await waitFor(() => expect(joinRoomAsync).toHaveBeenCalledWith("dm-1"));
     expect(joinRoomAsync).not.toHaveBeenCalledWith("dm-pending");
+  });
+});
+
+
+describe('SPEC2 W3 background escrow replay', () => {
+  it('hydrates accepted background DMs silently through the same awaited path, including reactions and author mutations', async () => {
+    localStorage.clear(); __resetMuteCacheForTests(); __resetRoomAlertCacheForTests(); FakeNotification.instances = [];
+    const peer = await createRemotePeer(), self = await ensureDidIdentity();
+    const friend: Friend = { did: peer.did, name: 'Bob', addedAt: 1, roomId: 'dm-replay', status: 'accepted' };
+    const h = renderHook(() => useMessageAlerts('active', self.did, [friend]));
+    const post = await signedChatPost(peer, { roomId: friend.roomId, id: 'replay-post', timestamp: 1 });
+    await act(async () => { await eventListener?.(0, 'provider', post, friend.roomId, true); });
+    expect(loadPosts('chat', friend.roomId)[0]?.text).toBe('hello there');
+    const reactionFields = { type: 'tc-chat:reaction', roomId: friend.roomId, id: 'reaction-add', targetId: post.id,
+      emoji: '👍', op: 'add', fromId: peer.did, fromName: 'Bob', timestamp: 2 };
+    const reaction = { ...reactionFields, signature: await peer.sign(reactionFields) };
+    await act(async () => { await eventListener?.(0, 'provider', reaction, friend.roomId, true); });
+    expect(loadPosts('chat', friend.roomId)[0].reactions).toHaveLength(1);
+    const edit = await signedEditWire(peer, post.id, { roomId: friend.roomId, timestamp: 3 });
+    await act(async () => { await eventListener?.(0, 'provider', edit, friend.roomId, true); });
+    expect(loadPosts('chat', friend.roomId)[0].editedAt).toBe(3);
+    const deletion = await signedDeleteWire(peer, post.id, { roomId: friend.roomId, timestamp: 4 });
+    await act(async () => { await eventListener?.(0, 'provider', deletion, friend.roomId, true); });
+    expect(loadPosts('chat', friend.roomId)[0].deleted).toBe(true);
+    expect(loadWireLog(friend.roomId)).toContainEqual(reaction); expect(FakeNotification.instances).toHaveLength(0);
+    expect(h.result.current.unread[friend.roomId]).toBeUndefined(); h.unmount();
+  });
+  it('rejects room-bound posts, edits, deletes and reactions delivered on another DM, while accepting legacy wires', async () => {
+    localStorage.clear(); __resetMuteCacheForTests(); __resetRoomAlertCacheForTests(); FakeNotification.instances = [];
+    const peer = await createRemotePeer(), self = await ensureDidIdentity();
+    const friend: Friend = { did: peer.did, name: 'Bob', addedAt: 1, roomId: 'dm-filter', status: 'accepted' };
+    const targetId = seedPost(friend.roomId, peer.did);
+    const h = renderHook(() => useMessageAlerts('active', self.did, [friend]));
+    const post = await signedChatPost(peer, { roomId: 'different' });
+    const edit = await signedEditWire(peer, targetId, { roomId: 'different' });
+    const deletion = await signedDeleteWire(peer, targetId, { roomId: 'different' });
+    const fields = { type: 'tc-chat:reaction', roomId: 'different', id: 'wrong-reaction', targetId, emoji: '👍', op: 'add',
+      fromId: peer.did, fromName: 'Bob', timestamp: 1 };
+    const reaction = { ...fields, signature: await peer.sign(fields) };
+    await act(async () => { for (const w of [post, edit, deletion, reaction]) await eventListener?.(0, 'peer', w, friend.roomId); });
+    expect(loadWireLog(friend.roomId)).toEqual([]); expect(loadPosts('chat', friend.roomId)[0].deleted).toBeFalsy();
+    expect(loadPosts('chat', friend.roomId)[0].text).toBe('original'); expect(loadPosts('chat', friend.roomId)[0].reactions).toEqual([]);
+    const legacy = await signedChatPost(peer);
+    await act(async () => { await eventListener?.(0, 'peer', legacy, friend.roomId, true); });
+    expect(loadPosts('chat', friend.roomId)).toContainEqual(expect.objectContaining({ id: legacy.id })); h.unmount();
   });
 });
