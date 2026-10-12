@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [preact()],
   test: {
     environment: "happy-dom",
+    setupFiles: ["./src/test/webLocks.ts"],
     // Node 22+ ships an experimental global localStorage that otherwise
     // shadows happy-dom's implementation (missing e.g. .clear()).
     execArgv: ["--no-experimental-webstorage"],

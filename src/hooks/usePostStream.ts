@@ -411,6 +411,7 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
         | PostEditWire
         | PostDeleteWire
         | null;
+      if (decoded && decoded.roomId !== undefined && decoded.roomId !== evtRoomId) return;
       if (decoded?.type === "tc-chat:post" && (decoded as PostWire).surface === surface) {
         return hydratePost(decoded as PostWire);
       } else if (decoded?.type === "tc-chat:reaction") {
@@ -473,6 +474,7 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
     const timestamp = Date.now();
     const unsigned = {
       type: "tc-chat:post" as const,
+      roomId,
       surface,
       id,
       parentId: input.parentId,
@@ -516,6 +518,7 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
     const meta = { mimeType: file.type, fileName: file.name, fileSize: file.size };
     const unsigned = {
       type: "tc-chat:post" as const,
+      roomId,
       surface,
       id,
       parentId: null,
@@ -569,6 +572,7 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
     };
     const unsigned = {
       type: "tc-chat:post" as const,
+      roomId,
       surface,
       id,
       parentId: null,
@@ -616,6 +620,7 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
     const timestamp = Math.max(Date.now(), (previous?.timestamp ?? -Infinity) + 1);
     const unsigned = {
       type: "tc-chat:reaction" as const,
+      roomId,
       id: newId(),
       targetId,
       emoji,
@@ -721,6 +726,7 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
     const timestamp = Math.max(Date.now(), (previous?.editedAt ?? -Infinity) + 1);
     const unsigned = {
       type: "tc-chat:post-edit" as const,
+      roomId,
       id: newId(),
       surface,
       targetId,
@@ -760,6 +766,7 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
     if (!target || target.fromId !== identity.did || target.deleted) return;
     const unsigned = {
       type: "tc-chat:post-delete" as const,
+      roomId,
       id: newId(),
       surface,
       targetId,

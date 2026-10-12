@@ -18,7 +18,7 @@ export interface RoomEscrowClient {
   saveCheckpoint(app: string, room: string, bytes: Uint8Array, options: CheckpointOptions): Promise<PutResult>;
   dispose(): void;
 }
-interface Context { roomId: string; wires(): SignedWire[]; receive(w: SignedWire): Promise<void>; changed(view: EscrowView): void }
+interface Context { roomId: string; wires(): SignedWire[]; evidence?(): Promise<RoomCheckpoint>; receive(w: SignedWire): Promise<void>; changed(view: EscrowView): void }
 interface Watermark { lastSeq: number; lastHash: string | null; providerSeen: boolean; savedAt: number }
 export class RoomEscrowController {
   private client: RoomEscrowClient | null = null;
@@ -100,7 +100,7 @@ export class RoomEscrowController {
         if (latest.head.schema !== SCHEMA) throw new Error('Unsupported checkpoint schema');
         const remote = await parseCheckpoint(latest.plaintext, this.ctx.roomId);
         if (!active()) return;
-        const local = emptyCheckpoint(this.ctx.roomId);
+        const local = this.ctx.evidence ? await this.ctx.evidence() : emptyCheckpoint(this.ctx.roomId);
         for (const w of this.ctx.wires()) {
           const b = w.type !== 'tc-chat:escrow-config' && ['chat','board','calendar','gallery'].includes(w.surface as string) ? w.surface as 'chat' : 'misc'; local.buckets[b].push(w);
         }
@@ -137,7 +137,8 @@ export class RoomEscrowController {
     const revision = this.dirty;
     this.update('saving');
     try {
-      let c = await collectCheckpoint(this.ctx.roomId, this.ctx.wires(), this.transport, this.remote);
+      const evidence = this.ctx.evidence ? await this.ctx.evidence() : emptyCheckpoint(this.ctx.roomId);
+      let c = await collectCheckpoint(this.ctx.roomId, this.ctx.wires(), this.transport, await mergeCheckpoints(this.remote, evidence));
       for (let attempt = 0; attempt < 3; attempt++) {
         if (!active()) return;
         const maxBlob = Math.max(...[...client.providers.values()].map(p => p.maxBlob));

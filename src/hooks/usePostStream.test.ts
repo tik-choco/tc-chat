@@ -1286,3 +1286,42 @@ describe("usePostStream", () => {
 
 // Unmount each receiver so an in-flight repair cannot persist into a later case.
 afterEach(cleanup);
+
+
+it('SPEC2 W3 binds every newly emitted post/reaction/edit/delete to its signed transport room', async () => {
+  localStorage.clear(); __resetMuteCacheForTests(); vi.clearAllMocks();
+  const h = renderHook(() => usePostStream('signed-room', 'chat', 'Alice'));
+  await act(async () => { await h.result.current.createPost({ parentId: null, kind: 'text', text: 'hello' }); });
+  const id = h.result.current.nodes[0].id;
+  await act(async () => { await h.result.current.toggleReaction(id, '👍'); await h.result.current.editPost(id, { text: 'updated' }); await h.result.current.deletePost(id); });
+  const wires = sendMessage.mock.calls.map(c => c[1] as Record<string, unknown>);
+  expect(wires.map(w => w.type)).toEqual(['tc-chat:post', 'tc-chat:reaction', 'tc-chat:post-edit', 'tc-chat:post-delete']);
+  for (const w of wires) { expect(w.roomId).toBe('signed-room'); expect(await verifyWire(w)).toBe(true); expect(await verifyWire({ ...w, roomId: 'other' })).toBe(false); }
+  h.unmount();
+});
+
+
+it('SPEC2 W3 rejects signed cross-room post/reaction/edit/delete wires in the active receive path, accepting absent legacy roomId', async () => {
+  localStorage.clear(); __resetMuteCacheForTests(); vi.clearAllMocks();
+  const peer = await createRemotePeer();
+  const h = renderHook(() => usePostStream('active-bound', 'chat', 'Alice'));
+  appendPost({ id: 'target', roomId: 'active-bound', surface: 'chat', parentId: null, kind: 'text', cid: 'body',
+    fromId: peer.did, fromName: 'Bob', timestamp: 1, text: 'original', reactions: [] });
+  const base = { roomId: 'other', fromId: peer.did, fromName: 'Bob', timestamp: 2, surface: 'chat' };
+  const unsigned = [
+    { ...base, type: 'tc-chat:post', id: 'wrong-post', parentId: null, kind: 'media', cid: 'body' },
+    { ...base, type: 'tc-chat:reaction', id: 'wrong-reaction', targetId: 'target', emoji: '👍', op: 'add' },
+    { ...base, type: 'tc-chat:post-edit', id: 'wrong-edit', targetId: 'target', cid: 'body' },
+    { ...base, type: 'tc-chat:post-delete', id: 'wrong-delete', targetId: 'target' },
+  ];
+  await act(async () => { for (const fields of unsigned) {
+    eventListener?.(0, 'peer', { ...fields, signature: await peer.sign(fields) }, 'active-bound');
+  } await new Promise(r => setTimeout(r, 10)); });
+  expect(loadWireLog('active-bound')).toEqual([]);
+  expect(loadPosts('chat', 'active-bound')[0]).toMatchObject({ text: 'original', reactions: [] });
+  const fields = { type: 'tc-chat:post', id: 'legacy', surface: 'chat', parentId: null, kind: 'media', cid: 'body',
+    fromId: peer.did, fromName: 'Bob', timestamp: 3 };
+  await act(async () => { eventListener?.(0, 'peer', { ...fields, signature: await peer.sign(fields) }, 'active-bound'); });
+  await waitFor(() => expect(loadPosts('chat', 'active-bound')).toContainEqual(expect.objectContaining({ id: 'legacy' })));
+  h.unmount();
+});

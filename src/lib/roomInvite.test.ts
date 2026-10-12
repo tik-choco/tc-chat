@@ -102,3 +102,11 @@ describe("sendInviteDm", () => {
     expect(joinRoomAsync).not.toHaveBeenCalled();
   });
 });
+
+
+it('SPEC2 W3 signs the destination room on invite DMs', async () => {
+  await sendInviteDm('dm-bound', 'Alice', 'invite');
+  const wire = sendMessage.mock.calls.at(-1)![1];
+  expect(wire.roomId).toBe('dm-bound'); expect(await verifyWire(wire)).toBe(true);
+  expect(await verifyWire({ ...wire, roomId: 'other' })).toBe(false);
+});
