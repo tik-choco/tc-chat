@@ -1,0 +1,11 @@
+.escrow-panel .field select {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--elevated);
+  color: var(--text);
+  font: inherit;
+}
+.escrow-panel [role="status"] { margin-top: 1rem; }
+.escrow-panel .profile-hint { overflow-wrap: anywhere; }

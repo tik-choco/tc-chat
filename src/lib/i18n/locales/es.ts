@@ -1,8 +1,10 @@
+import { escrow } from "../catalog/escrow";
 import type { Messages } from "../messages";
 
 // Español — full translation (neutral / Latin American, informal "tú" register,
 // matching the tone of chat apps like WhatsApp/Discord in Spanish).
 export const es: Messages = {
+  escrow: escrow.es,
   common: {
     cancel: "Cancelar",
     save: "Guardar",

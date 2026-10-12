@@ -181,6 +181,7 @@ export function useFriends(roomId: string | null, selfDid: string | null, localN
     }
 
     const unsubscribe = subscribeEvent((eventType, fromId, payload, evtRoomId) => {
+      if ((eventType === EVENT_PEER_CONNECTED) && evtRoomId !== channelId) return;
       if (cancelled) return;
       if (eventType === EVENT_PEER_CONNECTED) {
         // Late-joiner catch-up: mirror the profile re-announce delay so a

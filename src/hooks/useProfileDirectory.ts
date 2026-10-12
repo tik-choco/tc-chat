@@ -107,6 +107,7 @@ export function useProfileDirectory(
     }
 
     const unsubscribe = subscribeEvent((eventType, fromId, payload, evtRoomId) => {
+      if ((eventType === EVENT_PEER_CONNECTED) && evtRoomId !== channelId) return;
       if (eventType === EVENT_PEER_CONNECTED) {
         const p = profileRef.current;
         if (p?.did) broadcastProfile(p, nameRef.current, fromId, channelId).catch(() => {});

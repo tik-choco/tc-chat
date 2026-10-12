@@ -9,7 +9,8 @@
 // The `?name=` query param predates this module (it was the cross-app hand-off
 // link a sibling tik-choco app used to open "our party's room"); invites reuse
 // it verbatim so existing links keep working.
-import { getNode, storage_add, DELIVERY_RELIABLE } from "./mistClient";
+import { retainedInviteParam } from "../escrow/config";
+import { getNode, joinAppRoom, storage_add, DELIVERY_RELIABLE } from "./mistClient";
 import { ensureDidIdentity } from "../crypto/didIdentity";
 import { signWireFields } from "./wireSign";
 import { generatePostEnc, encryptPostBytes } from "../crypto/postCipher";
@@ -25,14 +26,17 @@ export const MAX_INVITE_NAME = 60;
  * Pages' `/tc-chat/`, a local `vite --host` — produces a link back to itself;
  * it is a parameter purely so this stays testable without a DOM.
  */
-export function buildInviteUrl(roomId: string, roomName?: string, base?: string): string {
+export function buildInviteUrl(roomId: string, roomName?: string, base?: string, mistl = retainedInviteParam(roomId)): string {
   const origin =
     base ??
     (typeof window !== "undefined" ? `${window.location.origin}${window.location.pathname}` : "");
   const name = roomName?.trim().slice(0, MAX_INVITE_NAME);
   // A name equal to the id adds nothing to the link — the receiver falls back
   // to the id anyway — so leave it off and keep the URL (and its QR) shorter.
-  const query = name && name !== roomId ? `?name=${encodeURIComponent(name)}` : "";
+  const params = new URLSearchParams();
+  if (name && name !== roomId) params.set("name", name);
+  if (mistl) params.set("mistl", mistl);
+  const query = params.size ? `?${[...params].map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&")}` : "";
   return `${origin}${query}${hashForRoomId(roomId)}`;
 }
 
@@ -52,12 +56,12 @@ const ENC_STORAGE_NAME = "enc.bin";
  * every other peer.
  */
 export async function sendInviteDm(roomId: string, fromName: string, text: string): Promise<void> {
+  await joinAppRoom(roomId);
   const node = await getNode();
   // The DM swarm is normally already joined in the background (useMessageAlerts
   // joins every accepted friend's DM up front), but an invite can be sent before
   // that lands — joining first means the room-scoped send below can't hit the
   // "room not joined" race.
-  if (!node.isRoomJoined(roomId)) await node.joinRoomAsync(roomId);
   const identity = await ensureDidIdentity();
   const id = newId();
   const enc = generatePostEnc();

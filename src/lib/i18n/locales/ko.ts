@@ -1,7 +1,9 @@
+import { escrow } from "../catalog/escrow";
 import type { Messages } from "../messages";
 
 // 한국어 — full translation of the Japanese source strings.
 export const ko: Messages = {
+  escrow: escrow.ko,
   common: {
     cancel: "취소",
     save: "저장",
