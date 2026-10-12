@@ -14,7 +14,7 @@
 // maintenance on content the user isn't looking at).
 import { useEffect, useRef, useState } from "preact/hooks";
 import {
-  getNode,
+  joinAppRoom,
   subscribeEvent,
   isRawEvent,
   decodeRawPayload,
@@ -140,8 +140,7 @@ export function useMessageAlerts(
     for (const roomId of dmRoomsKey.split(",")) {
       if (joinedRef.current.has(roomId)) continue;
       joinedRef.current.add(roomId);
-      getNode()
-        .then((node) => node.joinRoomAsync(roomId))
+      joinAppRoom(roomId)
         .catch((err) => {
           // Retry next time the friends list changes rather than never.
           joinedRef.current.delete(roomId);
@@ -287,7 +286,8 @@ export function useMessageAlerts(
       });
     }
 
-    const unsubscribe = subscribeEvent((eventType, _fromId, payload, evtRoomId) => {
+    const unsubscribe = subscribeEvent((eventType, _fromId, payload, evtRoomId, restored) => {
+      if (restored) return;
       if (cancelled || !isRawEvent(eventType) || !evtRoomId) return;
       const decoded = decodeRawPayload(payload) as
         | ChatPostWire

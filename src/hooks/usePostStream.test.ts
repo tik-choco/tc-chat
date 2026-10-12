@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, act, waitFor } from "@testing-library/preact";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { renderHook, act, waitFor, cleanup } from "@testing-library/preact";
+import { verifyWire } from "../lib/wireSign";
 import { usePostStream } from "./usePostStream";
 import { createDidIdentity, signStringWithDidIdentity } from "../crypto/didIdentity";
 import { decryptPostBytes, encryptPostBytes, generatePostEnc, isPostEnc } from "../crypto/postCipher";
@@ -472,6 +473,61 @@ describe("usePostStream", () => {
     await waitFor(() => expect(warnSpy).toHaveBeenCalled());
     expect(result.current.nodes).toHaveLength(0);
     warnSpy.mockRestore();
+  });
+
+
+  it.each([900, 1000])("local reactions advance past retained stamps when now=%s", async (now) => {
+    const { result, unmount } = renderHook(() => usePostStream("room-1", "chat", "Alice"));
+    await act(async () => { await result.current.createPost({ parentId: null, kind: "text", text: "hi" }); });
+    const targetId = result.current.nodes[0].id;
+    const clock = vi.spyOn(Date, "now").mockReturnValue(1000);
+    const ids = vi.spyOn(crypto, "randomUUID")
+      .mockReturnValueOnce("ffffffff-ffff-4fff-8fff-ffffffffffff")
+      .mockReturnValueOnce("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+      .mockReturnValueOnce("00000000-0000-4000-8000-000000000000");
+    try {
+      await act(async () => { await result.current.toggleReaction(targetId, "🎉"); });
+      const add = sendMessage.mock.calls.at(-1)![1];
+      clock.mockReturnValue(now);
+      await act(async () => { await result.current.toggleReaction(targetId, "🎉"); });
+      const remove = sendMessage.mock.calls.at(-1)![1];
+      expect(remove.timestamp).toBe(add.timestamp + 1);
+      expect(remove.id < add.id).toBe(true);
+      expect(result.current.nodes[0].reactions).toEqual([]);
+      // Remount: an absent visible reaction must still retain its removal stamp.
+      unmount();
+      const reopened = renderHook(() => usePostStream("room-1", "chat", "Alice"));
+      await act(async () => { await reopened.result.current.toggleReaction(targetId, "🎉"); });
+      const readd = sendMessage.mock.calls.at(-1)![1];
+      expect(readd.timestamp).toBe(remove.timestamp + 1);
+      expect(reopened.result.current.nodes[0].reactions).toHaveLength(1);
+      expect(await verifyWire(add)).toBe(true);
+      expect(await verifyWire(remove)).toBe(true);
+      expect(await verifyWire(readd)).toBe(true);
+    } finally { clock.mockRestore(); ids.mockRestore(); }
+  });
+
+  it.each([900, 1000])("local edits advance past the latest edit when now=%s", async (now) => {
+    const { result } = renderHook(() => usePostStream("room-1", "chat", "Alice"));
+    await act(async () => { await result.current.createPost({ parentId: null, kind: "text", text: "original" }); });
+    const targetId = result.current.nodes[0].id;
+    const clock = vi.spyOn(Date, "now").mockReturnValue(1000);
+    const ids = vi.spyOn(crypto, "randomUUID")
+      .mockReturnValueOnce("ffffffff-ffff-4fff-8fff-ffffffffffff")
+      .mockReturnValueOnce("00000000-0000-4000-8000-000000000000");
+    try {
+      await act(async () => { await result.current.editPost(targetId, { text: "first" }); });
+      const first = sendMessage.mock.calls.at(-1)![1];
+      clock.mockReturnValue(now);
+      await act(async () => { await result.current.editPost(targetId, { text: "second" }); });
+      const second = sendMessage.mock.calls.at(-1)![1];
+      expect(second.timestamp).toBe(first.timestamp + 1);
+      expect(second.id < first.id).toBe(true);
+      expect(result.current.nodes[0].text).toBe("second");
+      expect(result.current.nodes[0].editedAt).toBe(second.timestamp);
+      expect(await verifyWire(first)).toBe(true);
+      expect(await verifyWire(second)).toBe(true);
+    } finally { clock.mockRestore(); ids.mockRestore(); }
   });
 
   it("locally toggling a reaction broadcasts an add then a remove", async () => {
@@ -1227,3 +1283,6 @@ describe("usePostStream", () => {
     });
   });
 });
+
+// Unmount each receiver so an in-flight repair cannot persist into a later case.
+afterEach(cleanup);

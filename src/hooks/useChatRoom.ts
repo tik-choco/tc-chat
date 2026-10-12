@@ -1,7 +1,7 @@
 // Joins/leaves the given room on the shared mistlib node and composes the
 // presence + message hooks that depend on being in that room.
 import { useEffect, useState } from "preact/hooks";
-import { getNode } from "../lib/mistClient";
+import { getNode, joinAppRoom } from "../lib/mistClient";
 import { usePresence } from "./usePresence";
 import { usePostStream } from "./usePostStream";
 import { useTyping } from "./useTyping";
@@ -22,7 +22,7 @@ export function useChatRoom(roomId: string | null, localName: string) {
     setStatus("joining");
     (async () => {
       try {
-        const node = await getNode();
+        await getNode();
         if (cancelled) return;
         // roomId is the human-facing/display + local-storage id, and it's also
         // the raw P2P swarm topic on the wire — no derived/obscured channel id,
@@ -36,7 +36,8 @@ export function useChatRoom(roomId: string | null, localName: string) {
         // "joined" here, room-scoped sends are safe. This is what closes the
         // "Room not joined" race that used to hit presence/post sends fired in
         // the gap before the session existed. Rejects if the build fails.
-        await node.joinRoomAsync(roomId);
+        // A session lease shares ownership with escrow, even when escrow joined first.
+        await joinAppRoom(roomId);
         if (cancelled) return;
         setStatus("joined");
       } catch (err) {

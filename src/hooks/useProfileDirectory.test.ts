@@ -125,7 +125,10 @@ describe("useProfileDirectory", () => {
     await waitFor(() => expect(findAnnounce()).toBeTruthy());
     sendMessage.mockClear();
 
-    eventListener?.(EVENT_PEER_CONNECTED, "new-peer", null);
+    eventListener?.(EVENT_PEER_CONNECTED, "escrow-provider", null, "tce-other");
+    eventListener?.(EVENT_PEER_CONNECTED, "unscoped", null, "");
+    expect(sendMessage).not.toHaveBeenCalled();
+    eventListener?.(EVENT_PEER_CONNECTED, "new-peer", null, "r1");
     await waitFor(() => {
       const targeted = sendMessage.mock.calls.find(([to]) => to === "new-peer");
       expect(targeted).toBeTruthy();

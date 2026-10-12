@@ -13,6 +13,7 @@ export type { RoomTab };
 
 export function RoomContent(props: {
   tab: RoomTab;
+  onOpenEscrow?: () => void;
   onChangeTab: (tab: RoomTab) => void;
   /** Mobile only: opens the off-canvas sidebar drawer. */
   onOpenSidebar: () => void;
@@ -77,6 +78,7 @@ export function RoomContent(props: {
           <Images size={16} />
           {t("chat.galleryTab")}
         </button>
+        {props.onOpenEscrow && <button type="button" class="room-tab" onClick={props.onOpenEscrow}>{t("escrow.title")}</button>}
       </div>
       {banner}
       <div class="room-content-body">

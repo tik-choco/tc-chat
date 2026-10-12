@@ -87,6 +87,11 @@ export default tseslint.config(
     },
   },
   {
+    // Portable core is byte-identical to tc-linkai; this regex intentionally rejects control characters.
+    files: ["src/escrow/head.ts"],
+    rules: { "no-control-regex": "off" },
+  },
+  {
     // The service worker is plain JS in a worker global scope, not a module,
     // and is never type-checked or bundled.
     files: ["public/sw.js"],

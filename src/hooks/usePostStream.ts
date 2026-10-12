@@ -26,6 +26,7 @@ import {
   applyPostEdit,
   applyReaction,
   loadPosts,
+  loadReactionStamp,
   loadWireLog,
   type PostNode,
   type PostSurface,
@@ -281,6 +282,7 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
             fromName: wire.fromId === identity.did ? "自分" : wire.fromName,
           },
           wire.op,
+          { timestamp: wire.timestamp, id: wire.id },
         );
         setNodes(loadPosts(surface, roomId!));
       } catch (err) {
@@ -327,6 +329,7 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
           text: body.text,
           title: body.title,
           editedAt: wire.timestamp,
+          editId: wire.id,
           startsAt: body.startsAt,
           endsAt: body.endsAt,
           location: body.location,
@@ -409,19 +412,19 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
         | PostDeleteWire
         | null;
       if (decoded?.type === "tc-chat:post" && (decoded as PostWire).surface === surface) {
-        hydratePost(decoded as PostWire);
+        return hydratePost(decoded as PostWire);
       } else if (decoded?.type === "tc-chat:reaction") {
-        hydrateReaction(decoded as ReactionWire);
+        return hydrateReaction(decoded as ReactionWire);
       } else if (
         decoded?.type === "tc-chat:post-edit" &&
         (decoded as PostEditWire).surface === surface
       ) {
-        hydratePostEdit(decoded as PostEditWire);
+        return hydratePostEdit(decoded as PostEditWire);
       } else if (
         decoded?.type === "tc-chat:post-delete" &&
         (decoded as PostDeleteWire).surface === surface
       ) {
-        hydratePostDelete(decoded as PostDeleteWire);
+        return hydratePostDelete(decoded as PostDeleteWire);
       }
     });
 
@@ -609,7 +612,8 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
       .find((n) => n.id === targetId)
       ?.reactions.some((r) => r.emoji === emoji && r.fromId === identity.did);
     const op: ReactionOp = already ? "remove" : "add";
-    const timestamp = Date.now();
+    const previous = loadReactionStamp(roomId, targetId, identity.did, emoji);
+    const timestamp = Math.max(Date.now(), (previous?.timestamp ?? -Infinity) + 1);
     const unsigned = {
       type: "tc-chat:reaction" as const,
       id: newId(),
@@ -623,7 +627,8 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
     const wire: ReactionWire = { ...unsigned, signature: await signWireFields(unsigned) };
     node.sendMessage(null, wire, DELIVERY_RELIABLE, roomId);
     appendWireLog(roomId, wire);
-    applyReaction(roomId, targetId, { emoji, fromId: identity.did, fromName: "自分" }, op);
+    applyReaction(roomId, targetId, { emoji, fromId: identity.did, fromName: "自分" }, op,
+      { timestamp: wire.timestamp, id: wire.id });
     setNodes(loadPosts(surface, roomId));
   }
 
@@ -711,7 +716,9 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
     const bodyBlob = await encryptPostBytes(enc, new TextEncoder().encode(JSON.stringify(body)));
     const cid = await storage_add(ENC_STORAGE_NAME, bodyBlob);
     if (shouldRelayRoom(roomId)) void noteBody(roomId, targetId, cid, bodyBlob.byteLength);
-    const timestamp = Date.now();
+    // Read again after storing the body: a newer edit may have arrived meanwhile.
+    const previous = loadPosts(surface, roomId).find((n) => n.id === targetId);
+    const timestamp = Math.max(Date.now(), (previous?.editedAt ?? -Infinity) + 1);
     const unsigned = {
       type: "tc-chat:post-edit" as const,
       id: newId(),
@@ -734,6 +741,7 @@ export function usePostStream(roomId: string | null, surface: PostSurface, local
       text: body.text,
       title: body.title,
       editedAt: timestamp,
+      editId: wire.id,
       startsAt: body.startsAt,
       endsAt: body.endsAt,
       location: body.location,

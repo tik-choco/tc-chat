@@ -7,6 +7,9 @@ let storedBytes: Uint8Array | null = null;
 
 vi.mock("./mistClient", () => ({
   getNode: vi.fn(async () => ({ sendMessage, isRoomJoined, joinRoomAsync })),
+  joinAppRoom: vi.fn(async (roomId: string) => {
+    if (!isRoomJoined(roomId)) await joinRoomAsync(roomId);
+  }),
   storage_add: vi.fn(async (_name: string, bytes: Uint8Array) => {
     storedBytes = bytes;
     return "cid-invite";

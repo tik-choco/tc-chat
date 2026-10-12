@@ -76,6 +76,7 @@ export function usePresence(roomId: string | null, localName: string) {
     };
 
     const unsubscribe = subscribeEvent((eventType, fromId, payload, evtRoomId) => {
+      if ((eventType === EVENT_PEER_CONNECTED || eventType === EVENT_PEER_DISCONNECTED) && evtRoomId !== channelId) return;
       if (cancelled) return;
       if (isRawEvent(eventType)) {
         if (evtRoomId && evtRoomId !== channelId) return; // another room's presence

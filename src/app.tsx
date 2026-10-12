@@ -1,3 +1,6 @@
+import { RoomEscrowPanel } from "./components/RoomEscrowPanel";
+import { useRoomEscrow } from "./hooks/useRoomEscrow";
+import { eligibleRoom } from "./escrow/config";
 import { useEffect, useState } from "preact/hooks";
 import "./styles/layout.css";
 import "./styles/sidebar.css";
@@ -125,6 +128,7 @@ export function App() {
   const [onboardingOpen, setOnboardingOpen] = useState(() => shouldShowOnboarding());
   const [personalCalendarOpen, setPersonalCalendarOpen] = useState(false);
   const [roomNameOpen, setRoomNameOpen] = useState(false);
+  const [roomEscrowOpen, setRoomEscrowOpen] = useState(false);
   const [roomIdentityOpen, setRoomIdentityOpen] = useState(false);
   // Which room's invite share sheet is open (any room in the list, not just the
   // active one — the sidebar can invite to a room without switching to it).
@@ -235,6 +239,8 @@ export function App() {
     metaFor: sharedRoomMetaFor,
     setRoomMeta,
   } = useRoomMeta(status === "joined" ? activeRoomId : null);
+
+  const roomEscrow = useRoomEscrow(status === "joined" && eligibleRoom(activeRoomId) ? activeRoomId : null);
 
   useEffect(() => {
     if (!username) return;
@@ -558,6 +564,7 @@ export function App() {
         />
       ) : (
         <RoomContent
+          onOpenEscrow={eligibleRoom(activeRoomId) ? () => setRoomEscrowOpen(true) : undefined}
           tab={roomTab}
           onChangeTab={setRoomTab}
           onOpenSidebar={() => setSidebarOpen(true)}
@@ -686,6 +693,8 @@ export function App() {
           onClose={() => setPersonalCalendarOpen(false)}
         />
       )}
+
+      {roomEscrowOpen && eligibleRoom(activeRoomId) && <RoomEscrowPanel key={activeRoomId} roomId={activeRoomId} escrow={roomEscrow} onClose={() => setRoomEscrowOpen(false)} />}
 
       {roomNameOpen && (
         <RoomNamePanel

@@ -18,14 +18,16 @@ type EventListener = (
   fromId: string,
   payload: unknown,
   roomId?: string,
+  restored?: boolean,
 ) => void;
 
 const sendMessage = vi.fn();
-const joinRoomAsync = vi.fn(async () => {});
+const joinRoomAsync = vi.fn(async (_roomId: string) => {});
 let eventListener: EventListener | null = null;
 
 vi.mock("../lib/mistClient", () => ({
   getNode: vi.fn(async () => ({ sendMessage, joinRoomAsync })),
+  joinAppRoom: vi.fn((roomId: string) => joinRoomAsync(roomId)),
   subscribeEvent: vi.fn((listener: EventListener) => {
     eventListener = listener;
     return () => {
@@ -174,6 +176,17 @@ describe("useMessageAlerts", () => {
   function friendFixture(did: string): Friend {
     return { did, name: "Bob", addedAt: 1, roomId: "dm-1", status: "accepted" };
   }
+
+  it("suppresses badges and notifications for escrow replay without consuming live alert dedupe", async () => {
+    const peer = await createRemotePeer();
+    const { result } = renderHook(() => useMessageAlerts("room-a", selfDid, [friendFixture(peer.did)]));
+    const wire = await signedChatPost(peer);
+    await act(async () => { eventListener?.(0, "transport", wire, "dm-1", true); await new Promise(r => setTimeout(r, 10)); });
+    expect(FakeNotification.instances).toHaveLength(0);
+    expect(result.current.unread["dm-1"]).toBeUndefined();
+    await act(async () => { eventListener?.(0, "transport", wire, "dm-1"); });
+    await waitFor(() => expect(FakeNotification.instances).toHaveLength(1));
+  });
 
   it("counts a verified message from a non-active room as unread", async () => {
     const peer = await createRemotePeer();

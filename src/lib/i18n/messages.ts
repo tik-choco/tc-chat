@@ -1,3 +1,4 @@
+import { escrow } from "./catalog/escrow";
 import { common } from "./catalog/common";
 import { settings } from "./catalog/settings";
 import { chat } from "./catalog/chat";
@@ -22,6 +23,7 @@ import { personal } from "./catalog/personal";
  * so a forgotten key is a compile error rather than a silent blank.
  */
 export const ja = {
+  escrow: escrow.ja,
   common: common.ja,
   settings: settings.ja,
   chat: chat.ja,
@@ -41,6 +43,7 @@ export const ja = {
 };
 
 export const en: Messages = {
+  escrow: escrow.en,
   common: common.en,
   settings: settings.en,
   chat: chat.en,

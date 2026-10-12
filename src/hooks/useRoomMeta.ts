@@ -80,6 +80,7 @@ export function useRoomMeta(roomId: string | null): {
     }
 
     const unsubscribe = subscribeEvent((eventType, fromId, payload, evtRoomId) => {
+      if ((eventType === EVENT_PEER_CONNECTED) && evtRoomId !== channelId) return;
       if (cancelled) return;
       if (eventType === EVENT_PEER_CONNECTED) {
         // Greet the newcomer with whatever we already know for this room, so

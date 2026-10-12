@@ -1,7 +1,9 @@
+import { escrow } from "../catalog/escrow";
 import type { Messages } from "../messages";
 
 // 简体中文
 export const zh: Messages = {
+  escrow: escrow.zh,
   common: {
     cancel: "取消",
     save: "保存",

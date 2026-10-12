@@ -107,6 +107,8 @@ export interface PostNode {
   deleted?: boolean;
   /** Set when the author last edited the body (applyPostEdit). */
   editedAt?: number;
+  /** Signed edit id, used to order edits with equal timestamps. */
+  editId?: string;
   reactions: Reaction[];
 }
 
@@ -157,21 +159,48 @@ const MAX_WIRE_LOG_PER_BUCKET = 600;
 
 type ReactionIndex = Record<string, Reaction[]>;
 
-function loadReactionIndex(roomId: string): ReactionIndex {
+/** Ordering metadata survives removals and post trimming so stale replay cannot resurrect a reaction. */
+export interface ReactionStamp { timestamp: number; id: string }
+interface ReactionState { v: 1; reactions: ReactionIndex; stamps: Record<string, ReactionStamp> }
+
+function loadReactionState(roomId: string): ReactionState {
   try {
     const raw = roomStorageGet(roomId, REACTIONS_KEY_PREFIX + roomId);
-    return raw ? (JSON.parse(raw) as ReactionIndex) : {};
+    if (raw) {
+      const stored = JSON.parse(raw) as ReactionState | ReactionIndex;
+      if (stored.v === 1) return stored as ReactionState;
+      // Existing installs stored only targetId -> Reaction[]. Keep those visible
+      // until a signed operation supplies ordering metadata for the same key.
+      return { v: 1, reactions: stored as ReactionIndex, stamps: {} };
+    }
   } catch {
-    return {};
+    // Unavailable local persistence behaves like the other room stores.
+  }
+  return { v: 1, reactions: {}, stamps: {} };
+}
+
+/** Includes removal tombstones so a local toggle can advance the signed ordering. */
+export function loadReactionStamp(
+  roomId: string, targetId: string, fromId: string, emoji: string,
+): ReactionStamp | undefined {
+  return loadReactionState(roomId).stamps[JSON.stringify([targetId, fromId, emoji])];
+}
+
+function loadReactionIndex(roomId: string): ReactionIndex {
+  return loadReactionState(roomId).reactions;
+}
+
+function saveReactionState(roomId: string, state: ReactionState) {
+  try {
+    // One write keeps the visible reactions and their ordering stamps atomic.
+    roomStorageSet(roomId, REACTIONS_KEY_PREFIX + roomId, JSON.stringify(state));
+  } catch (error) {
+    console.warn(`tc-chat: failed to persist reactions for room "${roomId}"`, error);
   }
 }
 
 function saveReactionIndex(roomId: string, index: ReactionIndex) {
-  try {
-    roomStorageSet(roomId, REACTIONS_KEY_PREFIX + roomId, JSON.stringify(index));
-  } catch (error) {
-    console.warn(`tc-chat: failed to persist reactions for room "${roomId}"`, error);
-  }
+  saveReactionState(roomId, { ...loadReactionState(roomId), reactions: index });
 }
 
 // targetId -> the delete wire's fromId, for deletes still waiting on their post.
@@ -346,7 +375,8 @@ export function appendPost(node: PostNode): PostNode[] {
 
 /**
  * Applies one reaction toggle to the room's shared reaction index (used by both
- * surfaces). `add` is idempotent per (emoji, fromId); `remove` drops that
+ * surfaces). Signed operations converge by newest (timestamp, id) per
+ * (targetId, fromId, emoji), including removal tombstones. `remove` drops that
  * person's reaction of that emoji. Callers reload their own list (loadPosts)
  * afterwards to pick up the merge.
  */
@@ -355,8 +385,21 @@ export function applyReaction(
   targetId: string,
   reaction: Reaction,
   op: ReactionOp,
+  stamp?: ReactionStamp,
 ): void {
-  const index = loadReactionIndex(roomId);
+  const state = loadReactionState(roomId);
+  const key = JSON.stringify([targetId, reaction.fromId, reaction.emoji]);
+  const previous = state.stamps[key];
+  if (stamp) {
+    if (!Number.isFinite(stamp.timestamp) || typeof stamp.id !== "string") return;
+    if (previous && (stamp.timestamp < previous.timestamp ||
+      (stamp.timestamp === previous.timestamp && stamp.id <= previous.id))) return;
+    state.stamps[key] = { timestamp: stamp.timestamp, id: stamp.id };
+  } else if (previous) {
+    // Legacy unstamped callers cannot overwrite signed state.
+    return;
+  }
+  const index = state.reactions;
   const current = index[targetId] ?? [];
   const withoutThis = current.filter(
     (r) => !(r.emoji === reaction.emoji && r.fromId === reaction.fromId),
@@ -364,7 +407,7 @@ export function applyReaction(
   const next = op === "add" ? [...withoutThis, reaction] : withoutThis;
   if (next.length > 0) index[targetId] = next;
   else delete index[targetId];
-  saveReactionIndex(roomId, index);
+  saveReactionState(roomId, state);
 }
 
 /**
@@ -387,6 +430,7 @@ export function applyPostEdit(
     text?: string;
     title?: string;
     editedAt: number;
+    editId?: string;
     startsAt?: number;
     endsAt?: number;
     location?: string;
@@ -399,11 +443,15 @@ export function applyPostEdit(
   const target = posts.find((p) => p.id === targetId);
   if (!target || target.fromId !== authorId || target.deleted) return;
   if (target.kind !== "text" && target.kind !== "project" && target.kind !== "event") return;
+  // Hydration and replay may complete out of order. Compare at application time.
+  if (target.editedAt !== undefined && (patch.editedAt < target.editedAt ||
+      patch.editedAt === target.editedAt && (patch.editId ?? "") <= (target.editId ?? ""))) return;
   target.cid = patch.cid;
   target.enc = patch.enc;
   target.text = patch.text;
   target.title = patch.title;
   target.editedAt = patch.editedAt;
+  target.editId = patch.editId;
   target.startsAt = patch.startsAt;
   target.endsAt = patch.endsAt;
   target.location = patch.location;
@@ -455,6 +503,7 @@ export function applyPostDelete(
 export type SignedWire = Record<string, unknown> & { id?: string };
 
 function wireBucket(wire: SignedWire): WireLogBucket {
+  if (wire.type === "tc-chat:escrow-config") return "misc";
   const surface = wire.surface;
   return typeof surface === "string" && (ROOM_TABS as readonly string[]).includes(surface)
     ? (surface as WireLogBucket)
@@ -534,6 +583,12 @@ export function loadWireLog(roomId: string): SignedWire[] {
   );
 }
 
+const wireLogListeners = new Set<(roomId: string) => void>();
+export function subscribeWireLog(listener: (roomId: string) => void): () => void {
+  wireLogListeners.add(listener);
+  return () => { wireLogListeners.delete(listener); };
+}
+
 /** Records a signed wire for later replay, deduped by wire id, newest kept. */
 export function appendWireLog(roomId: string, wire: SignedWire): void {
   migrateLegacyWireLog(roomId);
@@ -541,6 +596,7 @@ export function appendWireLog(roomId: string, wire: SignedWire): void {
   const log = loadWireLogBucket(bucket, roomId);
   if (typeof wire.id === "string" && log.some((w) => w.id === wire.id)) return;
   saveWireLogBucket(bucket, roomId, [...log, wire]);
+  for (const listener of wireLogListeners) listener(roomId);
 }
 
 /**

@@ -214,7 +214,7 @@ describe("chatStore", () => {
     // orphan in the room's reaction index.
     const raw = localStorage.getItem(`tc-chat:reactions:${roomId}`);
     const index = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
-    expect(index.old).toBeUndefined();
+    expect((index.reactions as Record<string, unknown>).old).toBeUndefined();
   });
 
   it("applyPostEdit updates body fields and editedAt for the matching author", () => {
@@ -225,6 +225,28 @@ describe("chatStore", () => {
     expect(edited.text).toBe("new");
     expect(edited.cid).toBe("cid-new");
     expect(edited.editedAt).toBe(999);
+  });
+
+  it.each(["chat", "board", "calendar", "gallery"] as const)("orders applied edits by timestamp then id on %s", (surface) => {
+    const older = { cid: "old", text: "old", editedAt: 10, editId: "z" };
+    const tied = { cid: "tie", text: "tie", editedAt: 20, editId: "a" };
+    const winner = { cid: "new", text: "new", editedAt: 20, editId: "b" };
+    for (const [i, edits] of [[older, tied, winner], [winner, tied, older]].entries()) {
+      const id = "ordered-" + i;
+      appendPost(post({ id, roomId: "r1", surface, fromId: "author" }));
+      for (const patch of edits) applyPostEdit(surface, "r1", id, "author", patch);
+      // Re-reading persistence (and replaying the winner) must keep its ordering stamp.
+      applyPostEdit(surface, "r1", id, "author", winner);
+      expect(loadPosts(surface, "r1").find(p => p.id === id)).toMatchObject(winner);
+    }
+  });
+
+  it("orders edits against legacy persisted timestamps without an edit id", () => {
+    appendPost(post({ id: "legacy", roomId: "r1", fromId: "author", editedAt: 20, text: "legacy" }));
+    applyPostEdit("board", "r1", "legacy", "author", { cid: "old", text: "old", editedAt: 19, editId: "z" });
+    expect(loadPosts("board", "r1")[0].text).toBe("legacy");
+    applyPostEdit("board", "r1", "legacy", "author", { cid: "tie", text: "tie", editedAt: 20, editId: "a" });
+    expect(loadPosts("board", "r1")[0]).toMatchObject({ text: "tie", editedAt: 20, editId: "a" });
   });
 
   it("applyPostEdit REJECTS an edit whose author doesn't match the post's fromId", () => {
