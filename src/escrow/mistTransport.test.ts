@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mock = vi.hoisted(() => ({ joined: new Set<string>(), event: null as null | ((type: number, from: string, payload: unknown, room: string) => void), hold: null as null | Promise<void>, fail: false,
   join: vi.fn(), leave: vi.fn(), send: vi.fn(), callbacks: vi.fn() }));
-vi.mock('../vendor/mistlib/wrappers/web/index.js', () => ({
+vi.mock('@tik-choco/mistlib-web', () => ({
   MistNode: class {
     async init() {} onEvent(cb: typeof mock.event) { mock.callbacks(); mock.event = cb; } onMediaEvent() {}
     isRoomJoined(room: string) { return mock.joined.has(room); }

@@ -29,6 +29,10 @@ export default defineConfig(({ mode }) => {
   return {
   base: process.env.VITE_BASE_PATH || '/',
   plugins: [preact()],
+  // Keep the wrapper and its WASM engine out of dependency pre-bundling.
+  optimizeDeps: {
+    exclude: ['@tik-choco/mistlib', '@tik-choco/mistlib-web'],
+  },
   resolve: { alias },
   define: {
     __MISTLIB_SOURCE__: JSON.stringify(localEngine ? 'local' : 'registry'),

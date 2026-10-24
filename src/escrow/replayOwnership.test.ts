@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { act, cleanup, renderHook } from '@testing-library/preact';
 const mock = vi.hoisted(() => ({ event: null as null | ((type: number, from: string, payload: unknown, room: string) => void), joined: new Set<string>(),
   get: vi.fn(), add: vi.fn(), send: vi.fn() }));
-vi.mock('../vendor/mistlib/wrappers/web/index.js', () => ({
+vi.mock('@tik-choco/mistlib-web', () => ({
   MistNode: class {
     async init() {} onEvent(cb: typeof mock.event) { mock.event = cb; } onMediaEvent() {}
     isRoomJoined(room: string) { return mock.joined.has(room); }

@@ -1,10 +1,10 @@
 // Fetches mistlib source (MISTLIB_REPO/MISTLIB_REF from the repo root .env,
-// shared with the web app's scripts/fetch-mistlib.mjs) into cli/.mistlib-src
+// used only by this CLI) into cli/.mistlib-src
 // so cli/Cargo.toml's path dependency on mistlib-native resolves without
 // requiring a separate sibling checkout of mistlib-dev.
 //
-// Copied from tc-mistllm/cli/scripts/fetch-mistlib.mjs. Unlike the web
-// script, this does not build anything — `cargo build` picks up
+// Copied from tc-mistllm/cli/scripts/fetch-mistlib.mjs.
+// This does not build anything — `cargo build` picks up
 // mistlib-native as a normal path dependency and compiles it itself.
 import { config } from "dotenv";
 import { existsSync, rmSync } from "node:fs";

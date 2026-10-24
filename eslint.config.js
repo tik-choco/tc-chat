@@ -23,7 +23,6 @@ export default tseslint.config(
       "dist/**",
       "src/vendor/**",
       ".mistlib-src/**",
-      ".mistlib-examples-src/**",
       "cli/**",
     ],
   },
@@ -100,7 +99,7 @@ export default tseslint.config(
     },
   },
   {
-    // Build tooling runs under Node, not in a browser (scripts/fetch-mistlib.mjs).
+    // Build tooling runs under Node, not in a browser.
     files: ["scripts/**/*.{js,mjs}", "*.config.{js,ts}"],
     languageOptions: {
       globals: { ...globals.node },

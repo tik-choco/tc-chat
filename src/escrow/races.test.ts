@@ -5,7 +5,7 @@ const mock = vi.hoisted(() => ({
   joined: new Set<string>(), hold: null as Promise<void> | null,
   leave: vi.fn(), send: vi.fn(), get: vi.fn(), add: vi.fn(),
 }));
-vi.mock('../vendor/mistlib/wrappers/web/index.js', () => ({
+vi.mock('@tik-choco/mistlib-web', () => ({
   MistNode: class {
     async init() {} onEvent(cb: typeof mock.event) { mock.event = cb; } onMediaEvent() {}
     isRoomJoined(room: string) { return mock.joined.has(room); }

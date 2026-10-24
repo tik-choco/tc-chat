@@ -9,7 +9,7 @@ mistlib-native（rlibとして直接リンク、FFI不要）を使った、tc-ch
 
 ## セットアップ
 
-`cli/Cargo.toml`の`mistlib`依存は相対パス`cli/.mistlib-src/mistlib-native`を参照しています。`.mistlib-src`はgitignore対象なので、初回ビルド前にfetchスクリプトでmistlibのソースを取得してください（Web版の`scripts/fetch-mistlib.mjs`と同じ`.env`を共有します）。
+`cli/Cargo.toml`の`mistlib`依存は相対パス`cli/.mistlib-src/mistlib-native`を参照しています。`.mistlib-src`はgitignore対象なので、初回ビルド前にfetchスクリプトでmistlibのソースを取得してください（リポジトリ直下の`.env`を読みます）。Web版のエンジンとラッパーはnpmの`@tik-choco/mistlib`と`@tik-choco/mistlib-web`から取得します。
 
 ```bash
 # リポジトリルート（tc-chat/）で一度だけ

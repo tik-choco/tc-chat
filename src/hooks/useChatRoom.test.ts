@@ -12,7 +12,7 @@ const mock = vi.hoisted(() => {
     initStarted: vi.fn(),
   };
 });
-vi.mock("../vendor/mistlib/wrappers/web/index.js", () => ({
+vi.mock("@tik-choco/mistlib-web", () => ({
   MistNode: class {
     async init() { mock.initStarted(); await mock.init; }
     onEvent() {}
