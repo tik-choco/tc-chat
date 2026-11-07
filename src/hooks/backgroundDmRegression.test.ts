@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { EVENT_RAW } from '@tik-choco/mistlib-web';
 import { act, cleanup, renderHook } from '@testing-library/preact';
 import { useRoomEscrow } from './useRoomEscrow';
 import { useMessageAlerts } from './useMessageAlerts';
@@ -20,22 +21,22 @@ const mock = vi.hoisted(() => ({
   kv: new Map<string, Uint8Array>(), bodies: new Map<string, Uint8Array>(),
   replayed: vi.fn(), send: vi.fn(),
 }));
-vi.mock('../lib/mistClient', () => ({
+vi.mock('../lib/mistClient', async () => ({
+  ...await vi.importActual<typeof import('@tik-choco/mistlib-web')>('@tik-choco/mistlib-web'),
   getNode: async () => ({ sendMessage: mock.send }), joinAppRoom: async () => {},
   subscribeEvent: (cb: typeof mock.listeners extends Set<infer T> ? T : never) => {
     mock.listeners.add(cb); return () => { mock.listeners.delete(cb); };
   },
-  isRawEvent: (event: number) => event === 0, decodeRawPayload: (wire: unknown) => wire,
+  isRawEvent: (event: number) => event === EVENT_RAW, decodeRawPayload: (wire: unknown) => wire,
   replayRoomWire: async (room: string, wire: unknown) => {
     mock.replayed(room, wire);
-    for (const cb of [...mock.listeners]) await cb(0, 'peer', wire, room, true);
+    for (const cb of [...mock.listeners]) await cb(EVENT_RAW, 'peer', wire, room, true);
   },
   storage_get: async (cid: string) => {
     const bytes = mock.bodies.get(cid); if (!bytes) throw new Error('body unavailable'); return bytes;
   },
   storage_kv_get: async (key: string) => mock.kv.get(key),
   storage_kv_set: async (key: string, bytes: Uint8Array) => { mock.kv.set(key, bytes); },
-  EVENT_PEER_CONNECTED: 5, DELIVERY_RELIABLE: 1,
 }));
 vi.mock('../escrow/mistTransport', () => ({ createMistEscrowTransport: () => ({
   join: async () => {}, leave() {}, send() {}, onMessage: () => () => {}, onPeer: () => () => {},
@@ -80,7 +81,7 @@ async function mount(rooms: string[], selfDid?: string) {
   return h;
 }
 async function deliver(room: string, wire: SignedWire, restored = false) {
-  await act(async () => { for (const cb of [...mock.listeners]) await cb(0, 'peer', wire, room, restored); });
+  await act(async () => { for (const cb of [...mock.listeners]) await cb(EVENT_RAW, 'peer', wire, room, restored); });
 }
 async function off(roomId: string) {
   return signed({ type: 'tc-chat:escrow-config', v: 1, id: 'off', roomId, rev: 1, mode: 'off', mistlRoom: '' });
@@ -120,7 +121,7 @@ it('a DM activated during config verification still adopts the in-flight Off wir
     if (value === wire && !waiting) { waiting = true; await gate; }
     return originalVerify(value);
   });
-  const pending = Promise.all([...mock.listeners].map(cb => cb(0, 'peer', wire, room)));
+  const pending = Promise.all([...mock.listeners].map(cb => cb(EVENT_RAW, 'peer', wire, room)));
   await vi.waitFor(() => expect(waiting).toBe(true));
   await deliver(room, await post(room));
   await vi.waitFor(() => expect(mock.sessions.has(room)).toBe(true));
@@ -146,7 +147,7 @@ it('retains Off when its resident DM session is evicted during signature verific
     return originalVerify(value);
   });
   // Fan out like the live event bus; verification must not block ordinary DM traffic.
-  const pending = Promise.all([...mock.listeners].map(cb => cb(0, 'peer', wire, room)));
+  const pending = Promise.all([...mock.listeners].map(cb => cb(EVENT_RAW, 'peer', wire, room)));
   try {
     await vi.waitFor(() => expect(waiting).toBe(true));
     mock.bodies.set('body', new TextEncoder().encode(JSON.stringify({ text: 'LRU activity' })));
@@ -211,7 +212,7 @@ it('real controller restores an encrypted board checkpoint into accepted backgro
   };
   const controller = new RoomEscrowController({ roomId: room, wires: () => [], receive: async w => {
     mock.replayed(room, w);
-    for (const cb of [...mock.listeners]) await cb(0, 'peer', w, room, true);
+    for (const cb of [...mock.listeners]) await cb(EVENT_RAW, 'peer', w, room, true);
   }, changed() {} }, transport, () => ({
     providers: new Map([['daemon', { maxBlob: 32 * 1024 * 1024 }]]),
     join: async () => {}, onProvider: () => () => {}, dispose() {},

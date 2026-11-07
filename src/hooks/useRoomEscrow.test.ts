@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { DELIVERY_RELIABLE, EVENT_AOI_ENTERED, EVENT_PEER_CONNECTED, EVENT_RAW } from '@tik-choco/mistlib-web';
 import { act, renderHook, waitFor } from '@testing-library/preact';
 import { useRoomEscrow } from './useRoomEscrow';
 import { ensureDidIdentity } from '../crypto/didIdentity';
@@ -6,8 +7,9 @@ import { signWireFields } from '../lib/wireSign';
 import { loadWireLog } from '../lib/chatStore';
 import { loadConfig } from '../escrow/config';
 const mock = vi.hoisted(() => ({ listeners: new Set<(e: number, from: string, bytes: unknown, room: string) => void | Promise<void>>(), send: vi.fn(), configure: vi.fn(async (_s: unknown) => {}), dispose: vi.fn(), created: vi.fn(), dirty: vi.fn() }));
-vi.mock('../lib/mistClient', () => ({ getNode: async () => ({ sendMessage: mock.send }), subscribeEvent: (cb: typeof mock.listeners extends Set<infer T> ? T : never) => { mock.listeners.add(cb); return () => { mock.listeners.delete(cb); }; },
-  decodeRawPayload: (v: unknown) => v, isRawEvent: (e: number) => e === 0, EVENT_PEER_CONNECTED: 5, DELIVERY_RELIABLE: 1, replayRoomWire: async () => {} }));
+vi.mock('../lib/mistClient', async () => ({
+  ...await vi.importActual<typeof import('@tik-choco/mistlib-web')>('@tik-choco/mistlib-web'), getNode: async () => ({ sendMessage: mock.send }), subscribeEvent: (cb: typeof mock.listeners extends Set<infer T> ? T : never) => { mock.listeners.add(cb); return () => { mock.listeners.delete(cb); }; },
+  decodeRawPayload: (v: unknown) => v, isRawEvent: (e: number) => e === EVENT_RAW, replayRoomWire: async () => {} }));
 vi.mock('../escrow/mistTransport', () => ({ createMistEscrowTransport: () => ({}) }));
 vi.mock('../escrow/controller', () => ({ RoomEscrowController: class { constructor() { mock.created(); } configure = mock.configure; dispose = mock.dispose; markDirty = mock.dirty; retryNow = vi.fn(); flush = vi.fn(); } }));
 beforeEach(() => { localStorage.clear(); mock.listeners.clear(); vi.clearAllMocks(); window.history.replaceState(null, '', '/#/r'); });
@@ -28,20 +30,21 @@ describe('active room shared setting hook', () => {
     const h = renderHook(() => useRoomEscrow('r'));
     await waitFor(() => expect(mock.configure).toHaveBeenCalledWith({ mode: 'custom', mistlRoom: 'daemon/hint' }));
     const w = await signed('off');
-    await act(async () => { for (const cb of mock.listeners) await cb(0, 'peer', w, 'other'); }); expect(h.result.current.config).toBeNull();
-    await act(async () => { for (const cb of mock.listeners) await cb(0, 'peer', { ...w, mode: 'auto' }, 'r'); }); expect(h.result.current.config).toBeNull();
-    await act(async () => { for (const cb of mock.listeners) await cb(0, 'peer', w, 'r'); });
+    await act(async () => { for (const cb of mock.listeners) await cb(EVENT_RAW, 'peer', w, 'other'); }); expect(h.result.current.config).toBeNull();
+    await act(async () => { for (const cb of mock.listeners) await cb(EVENT_RAW, 'peer', { ...w, mode: 'auto' }, 'r'); }); expect(h.result.current.config).toBeNull();
+    await act(async () => { for (const cb of mock.listeners) await cb(EVENT_RAW, 'peer', w, 'r'); });
     expect(h.result.current.config).toEqual(w); expect(await loadConfig('r')).toEqual(w); expect(loadWireLog('r')).toContainEqual(w);
-    mock.send.mockClear(); await act(async () => { for (const cb of mock.listeners) await cb(5, 'daemon', null, 'tce-other'); }); expect(mock.send).not.toHaveBeenCalled();
-    await act(async () => { for (const cb of mock.listeners) await cb(5, 'new-peer', null, 'r'); });
-    expect(mock.send).toHaveBeenCalledWith('new-peer', w, 1, 'r'); h.unmount();
+    mock.send.mockClear(); await act(async () => { for (const cb of mock.listeners) await cb(EVENT_PEER_CONNECTED, 'daemon', new TextEncoder().encode('joined'), 'tce-other'); }); expect(mock.send).not.toHaveBeenCalled();
+    await act(async () => { for (const cb of mock.listeners) await cb(EVENT_AOI_ENTERED, 'new-peer', new TextEncoder().encode('entered'), 'r'); }); expect(mock.send).not.toHaveBeenCalled();
+    await act(async () => { for (const cb of mock.listeners) await cb(EVENT_PEER_CONNECTED, 'new-peer', new TextEncoder().encode('joined'), 'r'); });
+    expect(mock.send).toHaveBeenCalledWith('new-peer', w, DELIVERY_RELIABLE, 'r'); h.unmount();
   });
   it('creates a signed local setting at the next revision and retains higher remote winners', async () => {
     const h = renderHook(() => useRoomEscrow('r')); await waitFor(() => expect(mock.configure).toHaveBeenCalled());
     const remote = await signed('off', 9);
-    await act(async () => { for (const cb of mock.listeners) await cb(0, 'peer', remote, 'r'); });
+    await act(async () => { for (const cb of mock.listeners) await cb(EVENT_RAW, 'peer', remote, 'r'); });
     await act(async () => { await h.result.current.configure('custom', 'new/daemon'); });
     const cfg = h.result.current.config!; expect(cfg.rev).toBe(10); expect(cfg.mistlRoom).toBe('new/daemon'); expect(await loadConfig('r')).toEqual(cfg);
-    await act(async () => { for (const cb of mock.listeners) await cb(0, 'peer', remote, 'r'); }); expect(h.result.current.config).toEqual(cfg); h.unmount();
+    await act(async () => { for (const cb of mock.listeners) await cb(EVENT_RAW, 'peer', remote, 'r'); }); expect(h.result.current.config).toEqual(cfg); h.unmount();
   });
 });

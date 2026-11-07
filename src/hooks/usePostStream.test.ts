@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { EVENT_RAW } from '@tik-choco/mistlib-web';
 import { renderHook, act, waitFor, cleanup } from "@testing-library/preact";
 import { verifyWire } from "../lib/wireSign";
 import { usePostStream } from "./usePostStream";
@@ -45,7 +46,8 @@ function holdStorageGet(cid: string): Deferred<Uint8Array> {
   return deferred;
 }
 
-vi.mock("../lib/mistClient", () => ({
+vi.mock("../lib/mistClient", async () => ({
+  ...await vi.importActual<typeof import('@tik-choco/mistlib-web')>('@tik-choco/mistlib-web'),
   getNode: vi.fn(async () => ({ nodeId: "self-id", sendMessage })),
   subscribeEvent: vi.fn((listener: EventListener) => {
     eventListener = listener;
@@ -53,7 +55,7 @@ vi.mock("../lib/mistClient", () => ({
       eventListener = null;
     };
   }),
-  isRawEvent: vi.fn((eventType: number) => eventType === 0),
+  isRawEvent: vi.fn((eventType: number) => eventType === EVENT_RAW),
   decodeRawPayload: vi.fn((payload: unknown) => payload),
   storage_add: (name: string, bytes: Uint8Array) => storage_add(name, bytes),
   storage_get: vi.fn(async (cid: string) => {
@@ -61,7 +63,6 @@ vi.mock("../lib/mistClient", () => ({
     if (held) return held.promise;
     return storedBytes ?? new Uint8Array();
   }),
-  DELIVERY_RELIABLE: 1,
 }));
 
 // relay-cache policy is another worker's module (currently a no-op stub);
@@ -266,7 +267,7 @@ describe("usePostStream", () => {
       cid: "cid-remote",
     };
     await act(async () => {
-      eventListener?.(0, peer.did, { ...unsigned, signature: await peer.sign(unsigned) });
+      eventListener?.(EVENT_RAW, peer.did, { ...unsigned, signature: await peer.sign(unsigned) });
     });
     await waitFor(() => expect(result.current.nodes).toHaveLength(1));
     expect(result.current.nodes[0].fromName).toBe("Bob");
@@ -294,7 +295,7 @@ describe("usePostStream", () => {
       enc,
     };
     await act(async () => {
-      eventListener?.(0, peer.did, { ...unsigned, signature: await peer.sign(unsigned) });
+      eventListener?.(EVENT_RAW, peer.did, { ...unsigned, signature: await peer.sign(unsigned) });
     });
     await waitFor(() => expect(result.current.nodes).toHaveLength(1));
     expect(result.current.nodes[0].title).toBe("Secret project");
@@ -321,7 +322,7 @@ describe("usePostStream", () => {
       enc: { v: 1, alg: "A256GCM" }, // missing `key` -> fails isPostEnc
     };
     await act(async () => {
-      eventListener?.(0, peer.did, { ...unsigned, signature: await peer.sign(unsigned) });
+      eventListener?.(EVENT_RAW, peer.did, { ...unsigned, signature: await peer.sign(unsigned) });
     });
     await waitFor(() => expect(warnSpy).toHaveBeenCalled());
     // No crash, and no node is appended for the undecryptable body.
@@ -350,7 +351,7 @@ describe("usePostStream", () => {
       fileSize: 3,
     };
     await act(async () => {
-      eventListener?.(0, peer.did, { ...unsigned, signature: await peer.sign(unsigned) });
+      eventListener?.(EVENT_RAW, peer.did, { ...unsigned, signature: await peer.sign(unsigned) });
     });
     await waitFor(() => expect(result.current.nodes).toHaveLength(1));
     await waitFor(() =>
@@ -379,7 +380,7 @@ describe("usePostStream", () => {
       fileSize: 3,
     };
     await act(async () => {
-      eventListener?.(0, peer.did, { ...unsigned, signature: await peer.sign(unsigned) });
+      eventListener?.(EVENT_RAW, peer.did, { ...unsigned, signature: await peer.sign(unsigned) });
     });
     await waitFor(() => expect(result.current.nodes).toHaveLength(1));
     await new Promise((r) => setTimeout(r, 30));
@@ -414,14 +415,14 @@ describe("usePostStream", () => {
     };
     await act(async () => {
       // Delivered on a DIFFERENT room's swarm topic — must not leak into room-1.
-      eventListener?.(0, peer.did, { ...unsigned, signature: await peer.sign(unsigned) }, "other-room");
+      eventListener?.(EVENT_RAW, peer.did, { ...unsigned, signature: await peer.sign(unsigned) }, "other-room");
     });
     await new Promise((r) => setTimeout(r, 30));
     expect(result.current.nodes).toHaveLength(0);
 
     // The same wire on room-1's own channel is accepted.
     await act(async () => {
-      eventListener?.(0, peer.did, { ...unsigned, signature: await peer.sign(unsigned) }, "room-1");
+      eventListener?.(EVENT_RAW, peer.did, { ...unsigned, signature: await peer.sign(unsigned) }, "room-1");
     });
     await waitFor(() => expect(result.current.nodes).toHaveLength(1));
   });
@@ -443,7 +444,7 @@ describe("usePostStream", () => {
       cid: "cid-remote",
     };
     await act(async () => {
-      eventListener?.(0, peer.did, { ...unsigned, signature: await peer.sign(unsigned) });
+      eventListener?.(EVENT_RAW, peer.did, { ...unsigned, signature: await peer.sign(unsigned) });
     });
     // Give it a tick; it should not be added to this (board) stream.
     await new Promise((r) => setTimeout(r, 30));
@@ -468,7 +469,7 @@ describe("usePostStream", () => {
       cid: "cid-remote",
     };
     await act(async () => {
-      eventListener?.(0, peer.did, { ...unsigned, fromName: "Eve", signature: await peer.sign(unsigned) });
+      eventListener?.(EVENT_RAW, peer.did, { ...unsigned, fromName: "Eve", signature: await peer.sign(unsigned) });
     });
     await waitFor(() => expect(warnSpy).toHaveBeenCalled());
     expect(result.current.nodes).toHaveLength(0);
@@ -630,7 +631,7 @@ describe("usePostStream", () => {
       cid: "cid-remote",
     };
     await act(async () => {
-      eventListener?.(0, peer.did, { ...unsigned, signature: await peer.sign(unsigned) });
+      eventListener?.(EVENT_RAW, peer.did, { ...unsigned, signature: await peer.sign(unsigned) });
     });
     await waitFor(() => expect(result.current.nodes).toHaveLength(1));
 
@@ -661,7 +662,7 @@ describe("usePostStream", () => {
       cid: "cid-v1",
     };
     await act(async () => {
-      eventListener?.(0, peer.did, { ...post, signature: await peer.sign(post) });
+      eventListener?.(EVENT_RAW, peer.did, { ...post, signature: await peer.sign(post) });
     });
     await waitFor(() => expect(result.current.nodes).toHaveLength(1));
 
@@ -677,7 +678,7 @@ describe("usePostStream", () => {
       timestamp: 456,
     };
     await act(async () => {
-      eventListener?.(0, peer.did, { ...edit, signature: await peer.sign(edit) });
+      eventListener?.(EVENT_RAW, peer.did, { ...edit, signature: await peer.sign(edit) });
     });
     await waitFor(() => expect(result.current.nodes[0].text).toBe("v2"));
     expect(result.current.nodes[0].cid).toBe("cid-v2");
@@ -701,7 +702,7 @@ describe("usePostStream", () => {
       cid: "cid-remote",
     };
     await act(async () => {
-      eventListener?.(0, peer.did, { ...post, signature: await peer.sign(post) });
+      eventListener?.(EVENT_RAW, peer.did, { ...post, signature: await peer.sign(post) });
     });
     await waitFor(() => expect(result.current.nodes).toHaveLength(1));
 
@@ -715,7 +716,7 @@ describe("usePostStream", () => {
       timestamp: 456,
     };
     await act(async () => {
-      eventListener?.(0, peer.did, { ...del, signature: await peer.sign(del) });
+      eventListener?.(EVENT_RAW, peer.did, { ...del, signature: await peer.sign(del) });
     });
     await waitFor(() => expect(result.current.nodes[0].deleted).toBe(true));
     expect(result.current.nodes[0].text).toBeUndefined();
@@ -740,7 +741,7 @@ describe("usePostStream", () => {
       cid: "cid-remote",
     };
     await act(async () => {
-      eventListener?.(0, author.did, { ...post, signature: await author.sign(post) });
+      eventListener?.(EVENT_RAW, author.did, { ...post, signature: await author.sign(post) });
     });
     await waitFor(() => expect(result.current.nodes).toHaveLength(1));
 
@@ -756,7 +757,7 @@ describe("usePostStream", () => {
       timestamp: 456,
     };
     await act(async () => {
-      eventListener?.(0, attacker.did, { ...del, signature: await attacker.sign(del) });
+      eventListener?.(EVENT_RAW, attacker.did, { ...del, signature: await attacker.sign(del) });
     });
     await new Promise((r) => setTimeout(r, 30));
     expect(result.current.nodes[0].deleted).toBeUndefined();
@@ -782,7 +783,7 @@ describe("usePostStream", () => {
       cid: "cid-remote",
     };
     await act(async () => {
-      eventListener?.(0, author.did, { ...post, signature: await author.sign(post) });
+      eventListener?.(EVENT_RAW, author.did, { ...post, signature: await author.sign(post) });
     });
     await waitFor(() => expect(result.current.nodes).toHaveLength(1));
 
@@ -798,7 +799,7 @@ describe("usePostStream", () => {
       timestamp: 456,
     };
     await act(async () => {
-      eventListener?.(0, attacker.did, { ...edit, signature: await attacker.sign(edit) });
+      eventListener?.(EVENT_RAW, attacker.did, { ...edit, signature: await attacker.sign(edit) });
     });
     await new Promise((r) => setTimeout(r, 30));
     expect(result.current.nodes[0].text).toBe("mine");
@@ -823,7 +824,7 @@ describe("usePostStream", () => {
       cid: "cid-remote",
     };
     await act(async () => {
-      eventListener?.(0, peer.did, { ...post, signature: await peer.sign(post) });
+      eventListener?.(EVENT_RAW, peer.did, { ...post, signature: await peer.sign(post) });
     });
     await waitFor(() => expect(result.current.nodes).toHaveLength(1));
 
@@ -839,7 +840,7 @@ describe("usePostStream", () => {
     };
     await act(async () => {
       // The targetId is rewritten after signing — verifyWire must reject it.
-      eventListener?.(0, peer.did, { ...edit, targetId: "p5", cid: "cid-other", signature: await peer.sign(edit) });
+      eventListener?.(EVENT_RAW, peer.did, { ...edit, targetId: "p5", cid: "cid-other", signature: await peer.sign(edit) });
     });
     await waitFor(() => expect(warnSpy).toHaveBeenCalled());
     expect(result.current.nodes[0].text).toBe("v1");
@@ -885,7 +886,7 @@ describe("usePostStream", () => {
       cid: "cid-race",
     };
     await act(async () => {
-      eventListener?.(0, peer.did, { ...post, signature: await peer.sign(post) });
+      eventListener?.(EVENT_RAW, peer.did, { ...post, signature: await peer.sign(post) });
     });
 
     const del = {
@@ -898,7 +899,7 @@ describe("usePostStream", () => {
       timestamp: 456,
     };
     await act(async () => {
-      eventListener?.(0, peer.did, { ...del, signature: await peer.sign(del) });
+      eventListener?.(EVENT_RAW, peer.did, { ...del, signature: await peer.sign(del) });
     });
     // The delete has fully processed by now, but the post's body fetch is
     // still held open — the node must not exist yet (nothing to no-op onto).
@@ -946,8 +947,8 @@ describe("usePostStream", () => {
     const signedDel = { ...del, signature: await peer.sign(del) };
 
     await act(async () => {
-      eventListener?.(0, peer.did, signedPost);
-      eventListener?.(0, peer.did, signedDel);
+      eventListener?.(EVENT_RAW, peer.did, signedPost);
+      eventListener?.(EVENT_RAW, peer.did, signedDel);
     });
     // Give the delete (no slow fetch on its path) time to fully apply while
     // the post's body fetch is still held open.
@@ -980,7 +981,7 @@ describe("usePostStream", () => {
       cid: "cid-race-2",
     };
     await act(async () => {
-      eventListener?.(0, author.did, { ...post, signature: await author.sign(post) });
+      eventListener?.(EVENT_RAW, author.did, { ...post, signature: await author.sign(post) });
     });
 
     // Validly signed over the attacker's OWN did — but they are not the
@@ -995,7 +996,7 @@ describe("usePostStream", () => {
       timestamp: 456,
     };
     await act(async () => {
-      eventListener?.(0, attacker.did, { ...del, signature: await attacker.sign(del) });
+      eventListener?.(EVENT_RAW, attacker.did, { ...del, signature: await attacker.sign(del) });
     });
     await new Promise((r) => setTimeout(r, 30));
     expect(result.current.nodes).toHaveLength(0);
@@ -1166,7 +1167,7 @@ describe("usePostStream", () => {
         cid: "cid-spam",
       };
       await act(async () => {
-        eventListener?.(0, peer.did, { ...unsigned, signature: await peer.sign(unsigned) });
+        eventListener?.(EVENT_RAW, peer.did, { ...unsigned, signature: await peer.sign(unsigned) });
       });
       await new Promise((r) => setTimeout(r, 30));
 
@@ -1196,7 +1197,7 @@ describe("usePostStream", () => {
         cid: "cid-ok",
       };
       await act(async () => {
-        eventListener?.(0, other.did, { ...unsigned, signature: await other.sign(unsigned) });
+        eventListener?.(EVENT_RAW, other.did, { ...unsigned, signature: await other.sign(unsigned) });
       });
       await waitFor(() => expect(result.current.nodes).toHaveLength(1));
       expect(result.current.nodes[0].fromName).toBe("Carol");
@@ -1275,8 +1276,8 @@ describe("usePostStream", () => {
         timestamp: 300,
       };
       await act(async () => {
-        eventListener?.(0, peer.did, { ...reaction, signature: await peer.sign(reaction) });
-        eventListener?.(0, peer.did, { ...del, signature: await peer.sign(del) });
+        eventListener?.(EVENT_RAW, peer.did, { ...reaction, signature: await peer.sign(reaction) });
+        eventListener?.(EVENT_RAW, peer.did, { ...del, signature: await peer.sign(del) });
       });
       await waitFor(() => expect(loadPosts("chat", "room-1")[0].deleted).toBe(true));
       expect(loadPosts("chat", "room-1")[0].reactions).toHaveLength(0);
@@ -1315,13 +1316,13 @@ it('SPEC2 W3 rejects signed cross-room post/reaction/edit/delete wires in the ac
     { ...base, type: 'tc-chat:post-delete', id: 'wrong-delete', targetId: 'target' },
   ];
   await act(async () => { for (const fields of unsigned) {
-    eventListener?.(0, 'peer', { ...fields, signature: await peer.sign(fields) }, 'active-bound');
+    eventListener?.(EVENT_RAW, 'peer', { ...fields, signature: await peer.sign(fields) }, 'active-bound');
   } await new Promise(r => setTimeout(r, 10)); });
   expect(loadWireLog('active-bound')).toEqual([]);
   expect(loadPosts('chat', 'active-bound')[0]).toMatchObject({ text: 'original', reactions: [] });
   const fields = { type: 'tc-chat:post', id: 'legacy', surface: 'chat', parentId: null, kind: 'media', cid: 'body',
     fromId: peer.did, fromName: 'Bob', timestamp: 3 };
-  await act(async () => { eventListener?.(0, 'peer', { ...fields, signature: await peer.sign(fields) }, 'active-bound'); });
+  await act(async () => { eventListener?.(EVENT_RAW, 'peer', { ...fields, signature: await peer.sign(fields) }, 'active-bound'); });
   await waitFor(() => expect(loadPosts('chat', 'active-bound')).toContainEqual(expect.objectContaining({ id: 'legacy' })));
   h.unmount();
 });

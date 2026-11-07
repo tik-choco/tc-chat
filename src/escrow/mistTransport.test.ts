@@ -1,15 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { DELIVERY_RELIABLE, EVENT_AOI_ENTERED, EVENT_AOI_LEFT, EVENT_PEER_CONNECTED, EVENT_PEER_DISCONNECTED, EVENT_RAW } from '@tik-choco/mistlib-web';
 const mock = vi.hoisted(() => ({ joined: new Set<string>(), event: null as null | ((type: number, from: string, payload: unknown, room: string) => void), hold: null as null | Promise<void>, fail: false,
   join: vi.fn(), leave: vi.fn(), send: vi.fn(), callbacks: vi.fn() }));
-vi.mock('@tik-choco/mistlib-web', () => ({
+vi.mock('@tik-choco/mistlib-web', async importOriginal => ({
+  ...await importOriginal<typeof import('@tik-choco/mistlib-web')>(),
   MistNode: class {
     async init() {} onEvent(cb: typeof mock.event) { mock.callbacks(); mock.event = cb; } onMediaEvent() {}
     isRoomJoined(room: string) { return mock.joined.has(room); }
     async joinRoomAsync(room: string) { mock.join(room); if (mock.hold) await mock.hold; if (mock.fail) throw new Error('join failed'); mock.joined.add(room); }
     leaveRoom(room: string) { mock.leave(room); mock.joined.delete(room); }
     sendMessage(...args: unknown[]) { mock.send(...args); }
-  }, EVENT_RAW: 0, EVENT_NEIGHBORS: 4, EVENT_PEER_CONNECTED: 5, EVENT_PEER_DISCONNECTED: 6,
-  DELIVERY_RELIABLE: 1, DELIVERY_UNRELIABLE: 0,
+  },
   storage_add: vi.fn(), storage_get: vi.fn(), storage_kv_set: vi.fn(), storage_kv_get: vi.fn(), storage_pin: vi.fn(), storage_unpin: vi.fn(), storage_is_pinned: vi.fn(), storage_add_pinned: vi.fn(),
 }));
 vi.mock('../lib/mistBuildInfo', () => ({ captureMistBuildInfo() {}, markMistLoadError() {} }));
@@ -85,12 +86,17 @@ describe('mist adapter and shared leases', () => {
     const joining = a.join('q'); const bytes = new Uint8Array([1]); a.send('q', 'target', bytes); bytes[0] = 9;
     for (let i = 1; i < 64; i++) a.send('q', null, new Uint8Array());
     expect(() => a.send('q', null, bytes)).toThrow('queue'); expect(() => a.send('q', null, new Uint8Array(16385))).toThrow('16 KiB');
-    resolve(); await joining; expect(mock.send.mock.calls[0]).toEqual(['target', new Uint8Array([1]), 1, 'q']);
-    for (const room of ['', 'other']) { mock.event!(0, 'x', [1], room); mock.event!(5, 'x', null, room); }
+    resolve(); await joining; expect(mock.send.mock.calls[0]).toEqual(['target', new Uint8Array([1]), DELIVERY_RELIABLE, 'q']);
+    for (const room of ['', 'other']) { mock.event!(EVENT_RAW, 'x', [1], room); mock.event!(EVENT_PEER_CONNECTED, 'x', new TextEncoder().encode('joined'), room); }
     expect(message).not.toHaveBeenCalled(); expect(peer).not.toHaveBeenCalled();
-    mock.event!(0, 'x', [1], 'q'); mock.event!(5, 'x', null, 'q'); mock.event!(6, 'x', null, 'q');
+    mock.event!(EVENT_AOI_ENTERED, 'x', new TextEncoder().encode('entered'), 'q');
+    mock.event!(EVENT_AOI_LEFT, 'x', new TextEncoder().encode('left'), 'q');
+    expect(peer).not.toHaveBeenCalled();
+    mock.event!(EVENT_RAW, 'x', [1], 'q');
+    mock.event!(EVENT_PEER_CONNECTED, 'x', new TextEncoder().encode('joined'), 'q');
+    mock.event!(EVENT_PEER_DISCONNECTED, 'x', new TextEncoder().encode('left'), 'q');
     expect(message).toHaveBeenCalledWith('x', new Uint8Array([1])); expect(peer.mock.calls).toEqual([['x',true],['x',false]]);
-    a.leave('q'); mock.event!(0, 'x', [1], 'q'); expect(message).toHaveBeenCalledTimes(1);
+    a.leave('q'); mock.event!(EVENT_RAW, 'x', [1], 'q'); expect(message).toHaveBeenCalledTimes(1);
   });
   it('awaits the same event subscribers during restore and marks history as restored', async () => {
     const order: string[] = [];

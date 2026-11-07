@@ -1,19 +1,20 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { DELIVERY_RELIABLE, EVENT_RAW } from '@tik-choco/mistlib-web';
 import { act, cleanup, renderHook } from '@testing-library/preact';
 const mock = vi.hoisted(() => ({
   event: null as null | ((type: number, from: string, payload: unknown, room: string) => void),
   joined: new Set<string>(), hold: null as Promise<void> | null,
   leave: vi.fn(), send: vi.fn(), get: vi.fn(), add: vi.fn(),
 }));
-vi.mock('@tik-choco/mistlib-web', () => ({
+vi.mock('@tik-choco/mistlib-web', async importOriginal => ({
+  ...await importOriginal<typeof import('@tik-choco/mistlib-web')>(),
   MistNode: class {
     async init() {} onEvent(cb: typeof mock.event) { mock.event = cb; } onMediaEvent() {}
     isRoomJoined(room: string) { return mock.joined.has(room); }
     async joinRoomAsync(room: string) { if (mock.hold) await mock.hold; mock.joined.add(room); }
     leaveRoom(room: string) { mock.leave(room); mock.joined.delete(room); }
     sendMessage(...args: unknown[]) { mock.send(...args); }
-  }, EVENT_RAW: 0, EVENT_NEIGHBORS: 4, EVENT_PEER_CONNECTED: 5, EVENT_PEER_DISCONNECTED: 6,
-  DELIVERY_RELIABLE: 1, DELIVERY_UNRELIABLE: 0,
+  },
   storage_add: (name: string, bytes: Uint8Array) => mock.add(name, bytes),
   storage_get: (cid: string) => mock.get(cid),
   storage_kv_set: vi.fn(), storage_kv_get: vi.fn(), storage_pin: vi.fn(),
@@ -67,7 +68,7 @@ it('keeps the controller replacement joined across Off while its old join is pen
     expect(c.view.status).toBe('searching');
     expect(mock.joined.has('controller-race')).toBe(true);
     expect(mock.leave).not.toHaveBeenCalledWith('controller-race');
-    expect(mock.send).toHaveBeenCalledWith(null, expect.any(Uint8Array), 1, 'controller-race');
+    expect(mock.send).toHaveBeenCalledWith(null, expect.any(Uint8Array), DELIVERY_RELIABLE, 'controller-race');
   } finally { hold.resolve(); await c.dispose(); mock.hold = null; }
 });
 
@@ -119,7 +120,7 @@ it.each(['restore', 'CAS'] as const)('preserves a live edit received after %s sn
     }
     await entered.promise;
     await act(async () => {
-      mock.event!(0, 'peer', new TextEncoder().encode(JSON.stringify(liveEdit)), 'r');
+      mock.event!(EVENT_RAW, 'peer', new TextEncoder().encode(JSON.stringify(liveEdit)), 'r');
       await vi.waitFor(() => expect(loadPosts('chat', 'r')[0].text).toBe('LIVE'));
     });
     hold.resolve();

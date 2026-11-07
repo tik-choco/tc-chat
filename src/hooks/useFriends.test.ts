@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { EVENT_PEER_CONNECTED, EVENT_RAW } from '@tik-choco/mistlib-web';
 import { renderHook, act, waitFor } from "@testing-library/preact";
 import { useFriends } from "./useFriends";
 import {
@@ -14,11 +15,11 @@ type EventListener = (
   roomId?: string,
 ) => void;
 
-const EVENT_PEER_CONNECTED = 5;
 const sendMessage = vi.fn();
 let eventListener: EventListener | null = null;
 
-vi.mock("../lib/mistClient", () => ({
+vi.mock("../lib/mistClient", async () => ({
+  ...await vi.importActual<typeof import('@tik-choco/mistlib-web')>('@tik-choco/mistlib-web'),
   getNode: vi.fn(async () => ({ sendMessage })),
   subscribeEvent: vi.fn((listener: EventListener) => {
     eventListener = listener;
@@ -26,10 +27,8 @@ vi.mock("../lib/mistClient", () => ({
       eventListener = null;
     };
   }),
-  isRawEvent: vi.fn((eventType: number) => eventType === 0),
+  isRawEvent: vi.fn((eventType: number) => eventType === EVENT_RAW),
   decodeRawPayload: vi.fn((payload: unknown) => payload),
-  EVENT_PEER_CONNECTED: 5,
-  DELIVERY_RELIABLE: 1,
 }));
 
 function stableStringify(value: unknown): string {
@@ -99,7 +98,7 @@ describe("useFriends", () => {
       sentAt: Date.now(),
     };
     await act(async () => {
-      eventListener?.(0, "peer-transport", { ...unsigned, signature: await peer.sign(unsigned) }, "r1");
+      eventListener?.(EVENT_RAW, "peer-transport", { ...unsigned, signature: await peer.sign(unsigned) }, "r1");
     });
 
     await waitFor(() =>
@@ -126,7 +125,7 @@ describe("useFriends", () => {
       sentAt: Date.now(),
     };
     await act(async () => {
-      eventListener?.(0, "peer-transport", { ...unsigned, signature: await peer.sign(unsigned) }, "r1");
+      eventListener?.(EVENT_RAW, "peer-transport", { ...unsigned, signature: await peer.sign(unsigned) }, "r1");
     });
 
     await waitFor(() =>
@@ -157,7 +156,7 @@ describe("useFriends", () => {
       sentAt: Date.now(),
     };
     await act(async () => {
-      eventListener?.(0, "peer-transport", { ...unsigned, signature: await peer.sign(unsigned) }, "r1");
+      eventListener?.(EVENT_RAW, "peer-transport", { ...unsigned, signature: await peer.sign(unsigned) }, "r1");
     });
 
     await waitFor(() =>
@@ -185,7 +184,7 @@ describe("useFriends", () => {
       sentAt: Date.now(),
     };
     await act(async () => {
-      eventListener?.(0, "peer-transport", { ...unsigned, signature: await peer.sign(unsigned) }, "r1");
+      eventListener?.(EVENT_RAW, "peer-transport", { ...unsigned, signature: await peer.sign(unsigned) }, "r1");
     });
 
     await waitFor(() => expect(result.current.friends).toHaveLength(0));
@@ -203,7 +202,7 @@ describe("useFriends", () => {
       sentAt: Date.now(),
     };
     await act(async () => {
-      eventListener?.(0, "peer-transport", { ...request, signature: await peer.sign(request) }, "r1");
+      eventListener?.(EVENT_RAW, "peer-transport", { ...request, signature: await peer.sign(request) }, "r1");
     });
     await waitFor(() => expect(result.current.friends).toHaveLength(1));
 
@@ -214,7 +213,7 @@ describe("useFriends", () => {
       sentAt: Date.now(),
     };
     await act(async () => {
-      eventListener?.(0, "peer-transport", { ...cancel, signature: await peer.sign(cancel) }, "r1");
+      eventListener?.(EVENT_RAW, "peer-transport", { ...cancel, signature: await peer.sign(cancel) }, "r1");
     });
 
     await waitFor(() => expect(result.current.friends).toHaveLength(0));
@@ -233,7 +232,7 @@ describe("useFriends", () => {
       sentAt: Date.now(),
     };
     await act(async () => {
-      eventListener?.(0, "peer-transport", { ...unsigned, signature: await peer.sign(unsigned) }, "r1");
+      eventListener?.(EVENT_RAW, "peer-transport", { ...unsigned, signature: await peer.sign(unsigned) }, "r1");
     });
     await new Promise((r) => setTimeout(r, 30));
 
@@ -254,7 +253,7 @@ describe("useFriends", () => {
     };
     // ...but signed by the attacker's key.
     await act(async () => {
-      eventListener?.(0, "peer-transport", { ...unsigned, signature: await attacker.sign(unsigned) }, "r1");
+      eventListener?.(EVENT_RAW, "peer-transport", { ...unsigned, signature: await attacker.sign(unsigned) }, "r1");
     });
     await new Promise((r) => setTimeout(r, 30));
 
@@ -273,7 +272,7 @@ describe("useFriends", () => {
       sentAt: Date.now(),
     };
     await act(async () => {
-      eventListener?.(0, "peer-transport", { ...unsigned, signature: await peer.sign(unsigned) }, "other-room");
+      eventListener?.(EVENT_RAW, "peer-transport", { ...unsigned, signature: await peer.sign(unsigned) }, "other-room");
     });
     await new Promise((r) => setTimeout(r, 30));
 
@@ -292,7 +291,7 @@ describe("useFriends", () => {
       sentAt: Date.now(),
     };
     await act(async () => {
-      eventListener?.(0, "peer-transport", { ...request, signature: await peer.sign(request) }, "r1");
+      eventListener?.(EVENT_RAW, "peer-transport", { ...request, signature: await peer.sign(request) }, "r1");
     });
     await waitFor(() => expect(result.current.friends).toHaveLength(1));
     sendMessage.mockClear();

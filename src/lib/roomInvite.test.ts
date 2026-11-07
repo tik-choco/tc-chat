@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { DELIVERY_RELIABLE } from '@tik-choco/mistlib-web';
 
 const sendMessage = vi.fn();
 const isRoomJoined = vi.fn((_roomId: string) => true);
 const joinRoomAsync = vi.fn(async (_roomId: string) => {});
 let storedBytes: Uint8Array | null = null;
 
-vi.mock("./mistClient", () => ({
+vi.mock("./mistClient", async () => ({
+  ...await vi.importActual<typeof import('@tik-choco/mistlib-web')>('@tik-choco/mistlib-web'),
   getNode: vi.fn(async () => ({ sendMessage, isRoomJoined, joinRoomAsync })),
   joinAppRoom: vi.fn(async (roomId: string) => {
     if (!isRoomJoined(roomId)) await joinRoomAsync(roomId);
@@ -14,7 +16,6 @@ vi.mock("./mistClient", () => ({
     storedBytes = bytes;
     return "cid-invite";
   }),
-  DELIVERY_RELIABLE: 1,
 }));
 
 import { buildInviteUrl, sendInviteDm, MAX_INVITE_NAME } from "./roomInvite";
@@ -63,7 +64,7 @@ describe("sendInviteDm", () => {
     expect(sendMessage).toHaveBeenCalledTimes(1);
     const [target, wire, delivery, roomId] = sendMessage.mock.calls[0];
     expect(target).toBeNull();
-    expect(delivery).toBe(1);
+    expect(delivery).toBe(DELIVERY_RELIABLE);
     expect(roomId).toBe("dm-abc"); // room-scoped: never leaks to another swarm
 
     expect(wire.type).toBe("tc-chat:post");

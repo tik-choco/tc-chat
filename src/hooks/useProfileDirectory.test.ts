@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { EVENT_PEER_CONNECTED, EVENT_RAW } from '@tik-choco/mistlib-web';
 import { renderHook, waitFor } from "@testing-library/preact";
 import { useProfileDirectory } from "./useProfileDirectory";
 import {
@@ -14,9 +15,9 @@ const sendMessage = vi.fn();
 let eventListener:
   | ((eventType: number, fromId: string, payload: unknown, evtRoomId?: string) => void)
   | null = null;
-const EVENT_PEER_CONNECTED = 5;
 
-vi.mock("../lib/mistClient", () => ({
+vi.mock("../lib/mistClient", async () => ({
+  ...await vi.importActual<typeof import('@tik-choco/mistlib-web')>('@tik-choco/mistlib-web'),
   getNode: vi.fn(async () => ({ sendMessage })),
   subscribeEvent: vi.fn(
     (listener: (eventType: number, fromId: string, payload: unknown, evtRoomId?: string) => void) => {
@@ -26,10 +27,8 @@ vi.mock("../lib/mistClient", () => ({
       };
     },
   ),
-  isRawEvent: vi.fn((eventType: number) => eventType === 0),
+  isRawEvent: vi.fn((eventType: number) => eventType === EVENT_RAW),
   decodeRawPayload: vi.fn((payload: unknown) => payload),
-  EVENT_PEER_CONNECTED: 5,
-  DELIVERY_RELIABLE: 1,
 }));
 
 function stableStringify(value: unknown): string {
@@ -92,7 +91,7 @@ describe("useProfileDirectory", () => {
       avatarCid: "cid-bob",
       updatedAt: 1000,
     };
-    eventListener?.(0, "peer-transport", { ...unsigned, signature: await peer.sign(unsigned) });
+    eventListener?.(EVENT_RAW, "peer-transport", { ...unsigned, signature: await peer.sign(unsigned) });
 
     await waitFor(() => expect(result.current.directory[peer.did]?.displayName).toBe("Bob"));
     expect(result.current.directory[peer.did].avatarCid).toBe("cid-bob");
@@ -112,7 +111,7 @@ describe("useProfileDirectory", () => {
       updatedAt: 1000,
     };
     // ...but signed with the attacker's key.
-    eventListener?.(0, "peer-transport", { ...unsigned, signature: await attacker.sign(unsigned) });
+    eventListener?.(EVENT_RAW, "peer-transport", { ...unsigned, signature: await attacker.sign(unsigned) });
     // Give the async verification time to run and (correctly) reject it.
     await new Promise((r) => setTimeout(r, 60));
 
@@ -151,7 +150,7 @@ describe("useProfileDirectory", () => {
       avatarCid: "cid-bob",
       updatedAt: 1000,
     };
-    eventListener?.(0, "peer-transport", { ...unsigned, signature: await peer.sign(unsigned) });
+    eventListener?.(EVENT_RAW, "peer-transport", { ...unsigned, signature: await peer.sign(unsigned) });
     await waitFor(() => expect(result.current.directory[peer.did]?.displayName).toBe("Bob"));
 
     rerender({ roomId: "r2" });
@@ -174,7 +173,7 @@ describe("useProfileDirectory", () => {
       avatarCid: "cid-bob",
       updatedAt: 1000,
     };
-    eventListener?.(0, "peer-transport", { ...unsigned, signature: await peer.sign(unsigned) });
+    eventListener?.(EVENT_RAW, "peer-transport", { ...unsigned, signature: await peer.sign(unsigned) });
     await waitFor(() => expect(result.current.directory[peer.did]?.displayName).toBe("Bob"));
 
     rerender({ roomId: "r2" });

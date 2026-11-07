@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { EVENT_RAW } from '@tik-choco/mistlib-web';
 import { RoomEscrowSession } from '../session';
 import { appendWireLog } from '../../lib/chatStore';
 import { ensureDidIdentity } from '../../crypto/didIdentity';
@@ -9,14 +10,13 @@ const mock = vi.hoisted(() => ({
   set: vi.fn(async () => {}),
   send: vi.fn(),
 }));
-vi.mock('../../lib/mistClient', () => ({
+vi.mock('../../lib/mistClient', async () => ({
+  ...await vi.importActual<typeof import('@tik-choco/mistlib-web')>('@tik-choco/mistlib-web'),
   getNode: async () => ({ sendMessage: mock.send }),
   subscribeEvent: () => () => {},
-  isRawEvent: () => true,
+  isRawEvent: (event: number) => event === EVENT_RAW,
   decodeRawPayload: (x: unknown) => x,
   replayRoomWire: async () => {},
-  EVENT_PEER_CONNECTED: 5,
-  DELIVERY_RELIABLE: 0,
   storage_kv_get: mock.get,
   storage_kv_set: mock.set,
 }));

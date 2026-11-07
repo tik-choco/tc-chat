@@ -1,4 +1,5 @@
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
+import { EVENT_RAW } from '@tik-choco/mistlib-web';
 import { act, cleanup, renderHook } from '@testing-library/preact';
 import { useRoomEscrow } from './useRoomEscrow';
 import { useMessageAlerts } from './useMessageAlerts';
@@ -13,15 +14,15 @@ const mock = vi.hoisted(() => ({
   contexts: new Map<string, { evidence(): Promise<RoomCheckpoint> }>(),
   created: vi.fn(), dirty: vi.fn(), disposed: vi.fn(), send: vi.fn(),
 }));
-vi.mock('../lib/mistClient', () => ({
+vi.mock('../lib/mistClient', async () => ({
+  ...await vi.importActual<typeof import('@tik-choco/mistlib-web')>('@tik-choco/mistlib-web'),
   getNode: async () => ({ sendMessage: mock.send }), joinAppRoom: async () => {},
   subscribeEvent: (cb: typeof mock.listeners extends Set<infer T> ? T : never) => { mock.listeners.add(cb); return () => { mock.listeners.delete(cb); }; },
-  isRawEvent: (event: number) => event === 0, decodeRawPayload: (wire: unknown) => wire,
-  replayRoomWire: async (room: string, wire: unknown) => { for (const cb of [...mock.listeners]) await cb(0, '', wire, room, true); },
+  isRawEvent: (event: number) => event === EVENT_RAW, decodeRawPayload: (wire: unknown) => wire,
+  replayRoomWire: async (room: string, wire: unknown) => { for (const cb of [...mock.listeners]) await cb(EVENT_RAW, '', wire, room, true); },
   storage_get: async () => new TextEncoder().encode(JSON.stringify({ text: 'background body' })),
   storage_kv_get: async (key: string) => mock.kv.get(key),
   storage_kv_set: async (key: string, value: Uint8Array) => { mock.kv.set(key, value); },
-  EVENT_PEER_CONNECTED: 5, DELIVERY_RELIABLE: 1,
 }));
 vi.mock('../escrow/mistTransport', () => ({ createMistEscrowTransport: () => ({}) }));
 vi.mock('../escrow/controller', () => ({ RoomEscrowController: class {
@@ -42,7 +43,7 @@ it('SPEC2 W3 activates an evicted accepted DM from the real background persisten
   const fields = { type: 'tc-chat:post', roomId: 'bg-9', surface: 'chat', id: 'background-post', parentId: null,
     kind: 'text', cid: 'body', fromId: identity.did, fromName: 'Self', timestamp: 1 };
   const wire = { ...fields, signature: await signWireFields(fields) };
-  await act(async () => { for (const cb of [...mock.listeners]) await cb(0, 'peer', wire, 'bg-9'); });
+  await act(async () => { for (const cb of [...mock.listeners]) await cb(EVENT_RAW, 'peer', wire, 'bg-9'); });
   await vi.waitFor(() => expect(mock.created).toHaveBeenCalledWith('bg-9'));
   expect(mock.disposed).toHaveBeenCalledWith('bg-0');
   expect(loadPosts('chat', 'bg-9')[0]?.text).toBe('background body');

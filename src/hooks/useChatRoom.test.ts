@@ -12,7 +12,8 @@ const mock = vi.hoisted(() => {
     initStarted: vi.fn(),
   };
 });
-vi.mock("@tik-choco/mistlib-web", () => ({
+vi.mock("@tik-choco/mistlib-web", async importOriginal => ({
+  ...await importOriginal<typeof import('@tik-choco/mistlib-web')>(),
   MistNode: class {
     async init() { mock.initStarted(); await mock.init; }
     onEvent() {}
@@ -21,7 +22,6 @@ vi.mock("@tik-choco/mistlib-web", () => ({
     async joinRoomAsync(room: string) { mock.join(room); mock.joined.add(room); }
     leaveRoom(room: string) { mock.joined.delete(room); }
   },
-  EVENT_RAW: 0,
 }));
 vi.mock("../lib/mistBuildInfo", () => ({ captureMistBuildInfo() {}, markMistLoadError() {} }));
 vi.mock("./usePresence", () => ({ usePresence: () => [] }));

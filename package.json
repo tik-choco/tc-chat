@@ -11,8 +11,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@tik-choco/mistlib": "0.6.6",
-    "@tik-choco/mistlib-web": "0.1.0",
+    "@tik-choco/mistlib": "0.7.3-beta.5",
+    "@tik-choco/mistlib-web": "0.3.1-beta.4",
     "lucide-preact": "^0.577.0",
     "preact": "^10.29.3",
     "qrcode-generator": "^2.0.4"

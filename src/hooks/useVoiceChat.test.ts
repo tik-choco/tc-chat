@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { MEDIA_EVENT_TRACK_ADDED, MEDIA_EVENT_TRACK_REMOVED } from '@tik-choco/mistlib-web';
 import { renderHook, act } from "@testing-library/preact";
 import { useVoiceChat } from "./useVoiceChat";
 
@@ -8,7 +9,8 @@ const removeLocalTrack = vi.fn();
 const setLocalTrackEnabled = vi.fn();
 let mediaListener: ((eventType: number, payload: unknown) => void) | null = null;
 
-vi.mock("../lib/mistClient", () => ({
+vi.mock("../lib/mistClient", async () => ({
+  ...await vi.importActual<typeof import('@tik-choco/mistlib-web')>('@tik-choco/mistlib-web'),
   getNode: vi.fn(async () => ({
     registerLocalTrack,
     unpublishLocalTrack,
@@ -22,8 +24,6 @@ vi.mock("../lib/mistClient", () => ({
       mediaListener = null;
     };
   }),
-  MEDIA_EVENT_TRACK_ADDED: 100,
-  MEDIA_EVENT_TRACK_REMOVED: 101,
 }));
 
 function makeTrack(id = "track-1", kind = "audio") {
@@ -108,7 +108,7 @@ describe("useVoiceChat", () => {
     const { result } = renderHook(() => useVoiceChat("room-1"));
 
     await act(async () => {
-      mediaListener?.(100, {
+      mediaListener?.(MEDIA_EVENT_TRACK_ADDED, {
         fromId: "peer-1",
         trackId: "remote-1",
         kind: "audio",
@@ -120,7 +120,7 @@ describe("useVoiceChat", () => {
     expect(result.current.remoteTracks[0].trackId).toBe("remote-1");
 
     await act(async () => {
-      mediaListener?.(101, {
+      mediaListener?.(MEDIA_EVENT_TRACK_REMOVED, {
         fromId: "peer-1",
         trackId: "remote-1",
         kind: "audio",
@@ -133,7 +133,7 @@ describe("useVoiceChat", () => {
   it("ignores our own mic looped back by the mesh", async () => {
     const { result } = renderHook(() => useVoiceChat("room-1"));
     await act(async () => {
-      mediaListener?.(100, {
+      mediaListener?.(MEDIA_EVENT_TRACK_ADDED, {
         fromId: "self-node",
         trackId: "mine-1",
         kind: "audio",

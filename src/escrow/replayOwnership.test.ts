@@ -1,16 +1,17 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { EVENT_RAW } from '@tik-choco/mistlib-web';
 import { act, cleanup, renderHook } from '@testing-library/preact';
 const mock = vi.hoisted(() => ({ event: null as null | ((type: number, from: string, payload: unknown, room: string) => void), joined: new Set<string>(),
   get: vi.fn(), add: vi.fn(), send: vi.fn() }));
-vi.mock('@tik-choco/mistlib-web', () => ({
+vi.mock('@tik-choco/mistlib-web', async importOriginal => ({
+  ...await importOriginal<typeof import('@tik-choco/mistlib-web')>(),
   MistNode: class {
     async init() {} onEvent(cb: typeof mock.event) { mock.event = cb; } onMediaEvent() {}
     isRoomJoined(room: string) { return mock.joined.has(room); }
     async joinRoomAsync(room: string) { mock.joined.add(room); }
     leaveRoom(room: string) { mock.joined.delete(room); }
     sendMessage(...args: unknown[]) { mock.send(...args); }
-  }, EVENT_RAW: 0, EVENT_NEIGHBORS: 4, EVENT_PEER_CONNECTED: 5, EVENT_PEER_DISCONNECTED: 6,
-  DELIVERY_RELIABLE: 1, DELIVERY_UNRELIABLE: 0,
+  },
   storage_add: (name: string, bytes: Uint8Array) => mock.add(name, bytes),
   storage_get: (cid: string) => mock.get(cid),
   storage_kv_set: vi.fn(), storage_kv_get: vi.fn(), storage_pin: vi.fn(),
@@ -78,7 +79,7 @@ it.each(['restore', 'CAS'] as const)('preserves a live reaction removal received
     }
     await entered.promise;
     await act(async () => {
-      mock.event!(0, 'peer', new TextEncoder().encode(JSON.stringify(remove)), 'r');
+      mock.event!(EVENT_RAW, 'peer', new TextEncoder().encode(JSON.stringify(remove)), 'r');
       await vi.waitFor(() => expect(loadPosts('chat', 'r')[0].reactions).toHaveLength(0));
     });
     hold.resolve(); if (saving) await saving;

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { EVENT_RAW } from '@tik-choco/mistlib-web';
 import { renderHook } from "@testing-library/preact";
 import { useHistorySync } from "./useHistorySync";
 import { appendWireLog } from "../lib/chatStore";
@@ -7,7 +8,8 @@ import { GLOBAL_ROOM_ID } from "../lib/util";
 const sendMessage = vi.fn();
 let eventListener: ((eventType: number, fromId: string, payload: unknown) => void) | null = null;
 
-vi.mock("../lib/mistClient", () => ({
+vi.mock("../lib/mistClient", async () => ({
+  ...await vi.importActual<typeof import('@tik-choco/mistlib-web')>('@tik-choco/mistlib-web'),
   getNode: vi.fn(async () => ({ sendMessage })),
   subscribeEvent: vi.fn((listener: (eventType: number, fromId: string, payload: unknown) => void) => {
     eventListener = listener;
@@ -15,10 +17,9 @@ vi.mock("../lib/mistClient", () => ({
       eventListener = null;
     };
   }),
-  isRawEvent: vi.fn((eventType: number) => eventType === 0),
+  isRawEvent: vi.fn((eventType: number) => eventType === EVENT_RAW),
   decodeRawPayload: vi.fn((payload: unknown) => payload),
   localNodeId: vi.fn(() => "self"),
-  DELIVERY_RELIABLE: 1,
 }));
 
 describe("useHistorySync", () => {
@@ -49,7 +50,7 @@ describe("useHistorySync", () => {
     appendWireLog("r1", { id: "w2", type: "tc-chat:node", cid: "c2" });
 
     renderHook(() => useHistorySync("r1"));
-    eventListener?.(0, "peer-x", { type: "tc-chat:history-request", id: "q1", roomId: "r1" });
+    eventListener?.(EVENT_RAW, "peer-x", { type: "tc-chat:history-request", id: "q1", roomId: "r1" });
     await vi.runAllTimersAsync();
 
     const replayed = sendMessage.mock.calls.filter(([to]) => to === "peer-x");
@@ -59,7 +60,7 @@ describe("useHistorySync", () => {
   it("ignores its own request echo (fromId is the local node id)", async () => {
     appendWireLog("r1", { id: "w1", type: "tc-chat:message" });
     renderHook(() => useHistorySync("r1"));
-    eventListener?.(0, "self", { type: "tc-chat:history-request", id: "q", roomId: "r1" });
+    eventListener?.(EVENT_RAW, "self", { type: "tc-chat:history-request", id: "q", roomId: "r1" });
     await vi.runAllTimersAsync();
 
     expect(sendMessage.mock.calls.some(([to]) => to === "self")).toBe(false);
@@ -68,7 +69,7 @@ describe("useHistorySync", () => {
   it("does not replay history for a different room", async () => {
     appendWireLog("r1", { id: "w1", type: "tc-chat:message" });
     renderHook(() => useHistorySync("r1"));
-    eventListener?.(0, "peer-x", { type: "tc-chat:history-request", id: "q", roomId: "OTHER" });
+    eventListener?.(EVENT_RAW, "peer-x", { type: "tc-chat:history-request", id: "q", roomId: "OTHER" });
     await vi.runAllTimersAsync();
 
     expect(sendMessage.mock.calls.some(([to]) => to === "peer-x")).toBe(false);
@@ -77,7 +78,7 @@ describe("useHistorySync", () => {
   it("never requests or answers history for the ephemeral global room", async () => {
     appendWireLog(GLOBAL_ROOM_ID, { id: "w1", type: "tc-chat:message" });
     renderHook(() => useHistorySync(GLOBAL_ROOM_ID));
-    eventListener?.(0, "peer-x", {
+    eventListener?.(EVENT_RAW, "peer-x", {
       type: "tc-chat:history-request",
       id: "q",
       roomId: GLOBAL_ROOM_ID,

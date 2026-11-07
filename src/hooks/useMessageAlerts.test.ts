@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { EVENT_RAW } from '@tik-choco/mistlib-web';
 import { renderHook, act, waitFor } from "@testing-library/preact";
 import { useMessageAlerts } from "./useMessageAlerts";
 import {
@@ -25,7 +26,8 @@ const sendMessage = vi.fn();
 const joinRoomAsync = vi.fn(async (_roomId: string) => {});
 let eventListener: EventListener | null = null;
 
-vi.mock("../lib/mistClient", () => ({
+vi.mock("../lib/mistClient", async () => ({
+  ...await vi.importActual<typeof import('@tik-choco/mistlib-web')>('@tik-choco/mistlib-web'),
   getNode: vi.fn(async () => ({ sendMessage, joinRoomAsync })),
   joinAppRoom: vi.fn((roomId: string) => joinRoomAsync(roomId)),
   subscribeEvent: vi.fn((listener: EventListener) => {
@@ -34,13 +36,11 @@ vi.mock("../lib/mistClient", () => ({
       eventListener = null;
     };
   }),
-  isRawEvent: vi.fn((eventType: number) => eventType === 0),
+  isRawEvent: vi.fn((eventType: number) => eventType === EVENT_RAW),
   decodeRawPayload: vi.fn((payload: unknown) => payload),
   storage_get: vi.fn(async () =>
     new TextEncoder().encode(JSON.stringify({ text: "hello there" })),
   ),
-  EVENT_PEER_CONNECTED: 5,
-  DELIVERY_RELIABLE: 1,
 }));
 
 // Minimal Notification stand-in — jsdom has none. Instances are collected so
@@ -181,10 +181,10 @@ describe("useMessageAlerts", () => {
     const peer = await createRemotePeer();
     const { result } = renderHook(() => useMessageAlerts("room-a", selfDid, [friendFixture(peer.did)]));
     const wire = await signedChatPost(peer);
-    await act(async () => { eventListener?.(0, "transport", wire, "dm-1", true); await new Promise(r => setTimeout(r, 10)); });
+    await act(async () => { eventListener?.(EVENT_RAW, "transport", wire, "dm-1", true); await new Promise(r => setTimeout(r, 10)); });
     expect(FakeNotification.instances).toHaveLength(0);
     expect(result.current.unread["dm-1"]).toBeUndefined();
-    await act(async () => { eventListener?.(0, "transport", wire, "dm-1"); });
+    await act(async () => { eventListener?.(EVENT_RAW, "transport", wire, "dm-1"); });
     await waitFor(() => expect(FakeNotification.instances).toHaveLength(1));
   });
 
@@ -194,7 +194,7 @@ describe("useMessageAlerts", () => {
 
     const wire = await signedChatPost(peer);
     await act(async () => {
-      eventListener?.(0, "transport", wire, "room-b");
+      eventListener?.(EVENT_RAW, "transport", wire, "room-b");
     });
 
     await waitFor(() => expect(result.current.unread["room-b"]).toBe(1));
@@ -211,7 +211,7 @@ describe("useMessageAlerts", () => {
 
     const wire = await signedChatPost(peer);
     await act(async () => {
-      eventListener?.(0, "transport", wire, "dm-1");
+      eventListener?.(EVENT_RAW, "transport", wire, "dm-1");
       await new Promise((r) => setTimeout(r, 30));
     });
 
@@ -234,7 +234,7 @@ describe("useMessageAlerts", () => {
 
       const wire = await signedChatPost(peer);
       await act(async () => {
-        eventListener?.(0, "transport", wire, "dm-1");
+        eventListener?.(EVENT_RAW, "transport", wire, "dm-1");
         await new Promise((r) => setTimeout(r, 30));
       });
 
@@ -254,7 +254,7 @@ describe("useMessageAlerts", () => {
 
       const wire = await signedChatPost(peer);
       await act(async () => {
-        eventListener?.(0, "transport", wire, "dm-1");
+        eventListener?.(EVENT_RAW, "transport", wire, "dm-1");
         await new Promise((r) => setTimeout(r, 30));
       });
 
@@ -270,7 +270,7 @@ describe("useMessageAlerts", () => {
 
       const wire = await signedChatPost(peer);
       await act(async () => {
-        eventListener?.(0, "transport", wire, "room-b");
+        eventListener?.(EVENT_RAW, "transport", wire, "room-b");
       });
 
       await waitFor(() => expect(result.current.unread["room-b"]).toBe(1));
@@ -283,7 +283,7 @@ describe("useMessageAlerts", () => {
 
     const wire = await signedChatPost(peer);
     await act(async () => {
-      eventListener?.(0, "transport", wire, "room-a");
+      eventListener?.(EVENT_RAW, "transport", wire, "room-a");
       await new Promise((r) => setTimeout(r, 30));
     });
 
@@ -309,8 +309,8 @@ describe("useMessageAlerts", () => {
     };
     const forged = { ...forgedUnsigned, signature: await attacker.sign(forgedUnsigned) };
     await act(async () => {
-      eventListener?.(0, "transport", own, "room-b");
-      eventListener?.(0, "transport", forged, "room-b");
+      eventListener?.(EVENT_RAW, "transport", own, "room-b");
+      eventListener?.(EVENT_RAW, "transport", forged, "room-b");
       await new Promise((r) => setTimeout(r, 30));
     });
 
@@ -323,8 +323,8 @@ describe("useMessageAlerts", () => {
 
     const wire = await signedChatPost(peer);
     await act(async () => {
-      eventListener?.(0, "transport", wire, "room-b");
-      eventListener?.(0, "transport", wire, "room-b");
+      eventListener?.(EVENT_RAW, "transport", wire, "room-b");
+      eventListener?.(EVENT_RAW, "transport", wire, "room-b");
     });
 
     await waitFor(() => expect(result.current.unread["room-b"]).toBe(1));
@@ -338,7 +338,7 @@ describe("useMessageAlerts", () => {
 
     const wire = await signedChatPost(peer);
     await act(async () => {
-      eventListener?.(0, "transport", wire, "dm-1");
+      eventListener?.(EVENT_RAW, "transport", wire, "dm-1");
     });
 
     await waitFor(() => expect(FakeNotification.instances).toHaveLength(1));
@@ -370,7 +370,7 @@ describe("useMessageAlerts", () => {
 
     const wire = await signedChatPost(peer, { enc });
     await act(async () => {
-      eventListener?.(0, "transport", wire, "dm-1");
+      eventListener?.(EVENT_RAW, "transport", wire, "dm-1");
     });
 
     await waitFor(() => expect(FakeNotification.instances).toHaveLength(1));
@@ -389,7 +389,7 @@ describe("useMessageAlerts", () => {
 
     const wire = await signedChatPost(peer);
     await act(async () => {
-      eventListener?.(0, "transport", wire, "dm-1");
+      eventListener?.(EVENT_RAW, "transport", wire, "dm-1");
     });
 
     // The unread badge still counts even though nothing pops up.
@@ -406,7 +406,7 @@ describe("useMessageAlerts", () => {
 
     const wire = await signedChatPost(peer);
     await act(async () => {
-      eventListener?.(0, "transport", wire, "room-b");
+      eventListener?.(EVENT_RAW, "transport", wire, "room-b");
     });
     await waitFor(() => expect(result.current.unread["room-b"]).toBe(1));
 
@@ -421,7 +421,7 @@ describe("useMessageAlerts", () => {
 
     const wire = await signedDeleteWire(peer, targetId);
     await act(async () => {
-      eventListener?.(0, "transport", wire, "dm-1");
+      eventListener?.(EVENT_RAW, "transport", wire, "dm-1");
     });
 
     await waitFor(() => {
@@ -440,7 +440,7 @@ describe("useMessageAlerts", () => {
 
     const wire = await signedDeleteWire(peer, targetId);
     await act(async () => {
-      eventListener?.(0, "transport", wire, "room-a");
+      eventListener?.(EVENT_RAW, "transport", wire, "room-a");
       await new Promise((r) => setTimeout(r, 30));
     });
 
@@ -467,7 +467,7 @@ describe("useMessageAlerts", () => {
     };
     const forged = { ...unsigned, signature: await attacker.sign(unsigned) };
     await act(async () => {
-      eventListener?.(0, "transport", forged, "dm-1");
+      eventListener?.(EVENT_RAW, "transport", forged, "dm-1");
       await new Promise((r) => setTimeout(r, 30));
     });
 
@@ -483,7 +483,7 @@ describe("useMessageAlerts", () => {
 
     const wire = await signedEditWire(peer, targetId);
     await act(async () => {
-      eventListener?.(0, "transport", wire, "dm-1");
+      eventListener?.(EVENT_RAW, "transport", wire, "dm-1");
     });
 
     await waitFor(() => {
@@ -508,7 +508,7 @@ describe("useMessageAlerts", () => {
     vi.mocked(storage_get).mockResolvedValueOnce(cipherBytes);
     const wire = await signedEditWire(peer, targetId, { enc });
     await act(async () => {
-      eventListener?.(0, "transport", wire, "dm-1");
+      eventListener?.(EVENT_RAW, "transport", wire, "dm-1");
     });
 
     await waitFor(() => {
@@ -531,7 +531,7 @@ describe("useMessageAlerts", () => {
 
     const wire = await signedDeleteWire(selfPeer, targetId);
     await act(async () => {
-      eventListener?.(0, "transport", wire, "dm-1");
+      eventListener?.(EVENT_RAW, "transport", wire, "dm-1");
     });
 
     await waitFor(() => {
@@ -565,18 +565,18 @@ describe('SPEC2 W3 background escrow replay', () => {
     const friend: Friend = { did: peer.did, name: 'Bob', addedAt: 1, roomId: 'dm-replay', status: 'accepted' };
     const h = renderHook(() => useMessageAlerts('active', self.did, [friend]));
     const post = await signedChatPost(peer, { roomId: friend.roomId, id: 'replay-post', timestamp: 1 });
-    await act(async () => { await eventListener?.(0, 'provider', post, friend.roomId, true); });
+    await act(async () => { await eventListener?.(EVENT_RAW, 'provider', post, friend.roomId, true); });
     expect(loadPosts('chat', friend.roomId)[0]?.text).toBe('hello there');
     const reactionFields = { type: 'tc-chat:reaction', roomId: friend.roomId, id: 'reaction-add', targetId: post.id,
       emoji: '👍', op: 'add', fromId: peer.did, fromName: 'Bob', timestamp: 2 };
     const reaction = { ...reactionFields, signature: await peer.sign(reactionFields) };
-    await act(async () => { await eventListener?.(0, 'provider', reaction, friend.roomId, true); });
+    await act(async () => { await eventListener?.(EVENT_RAW, 'provider', reaction, friend.roomId, true); });
     expect(loadPosts('chat', friend.roomId)[0].reactions).toHaveLength(1);
     const edit = await signedEditWire(peer, post.id, { roomId: friend.roomId, timestamp: 3 });
-    await act(async () => { await eventListener?.(0, 'provider', edit, friend.roomId, true); });
+    await act(async () => { await eventListener?.(EVENT_RAW, 'provider', edit, friend.roomId, true); });
     expect(loadPosts('chat', friend.roomId)[0].editedAt).toBe(3);
     const deletion = await signedDeleteWire(peer, post.id, { roomId: friend.roomId, timestamp: 4 });
-    await act(async () => { await eventListener?.(0, 'provider', deletion, friend.roomId, true); });
+    await act(async () => { await eventListener?.(EVENT_RAW, 'provider', deletion, friend.roomId, true); });
     expect(loadPosts('chat', friend.roomId)[0].deleted).toBe(true);
     expect(loadWireLog(friend.roomId)).toContainEqual(reaction); expect(FakeNotification.instances).toHaveLength(0);
     expect(h.result.current.unread[friend.roomId]).toBeUndefined(); h.unmount();
@@ -593,11 +593,11 @@ describe('SPEC2 W3 background escrow replay', () => {
     const fields = { type: 'tc-chat:reaction', roomId: 'different', id: 'wrong-reaction', targetId, emoji: '👍', op: 'add',
       fromId: peer.did, fromName: 'Bob', timestamp: 1 };
     const reaction = { ...fields, signature: await peer.sign(fields) };
-    await act(async () => { for (const w of [post, edit, deletion, reaction]) await eventListener?.(0, 'peer', w, friend.roomId); });
+    await act(async () => { for (const w of [post, edit, deletion, reaction]) await eventListener?.(EVENT_RAW, 'peer', w, friend.roomId); });
     expect(loadWireLog(friend.roomId)).toEqual([]); expect(loadPosts('chat', friend.roomId)[0].deleted).toBeFalsy();
     expect(loadPosts('chat', friend.roomId)[0].text).toBe('original'); expect(loadPosts('chat', friend.roomId)[0].reactions).toEqual([]);
     const legacy = await signedChatPost(peer);
-    await act(async () => { await eventListener?.(0, 'peer', legacy, friend.roomId, true); });
+    await act(async () => { await eventListener?.(EVENT_RAW, 'peer', legacy, friend.roomId, true); });
     expect(loadPosts('chat', friend.roomId)).toContainEqual(expect.objectContaining({ id: legacy.id })); h.unmount();
   });
 });

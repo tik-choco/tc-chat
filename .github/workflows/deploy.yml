@@ -47,7 +47,35 @@ jobs:
       # stays live.
       - name: Install latest mistlib
         run: |
-          npm install --no-save @tik-choco/mistlib@latest @tik-choco/mistlib-web@latest
+          # Pick the newer of the wrapper's `latest` and `beta` dist-tags, so
+          # betas ship as soon as they're published and a later stable release
+          # (which may leave `beta` pointing at an older prerelease) wins again.
+          web=$(npm view @tik-choco/mistlib-web dist-tags --json | node -e '
+            const tags = JSON.parse(require("fs").readFileSync(0, "utf8"));
+            const parse = (v) => { const [core, pre] = v.split("-", 2); return [core.split(".").map(Number), pre ? pre.split(".") : null]; };
+            const cmp = (a, b) => {
+              const [ac, ap] = parse(a), [bc, bp] = parse(b);
+              for (let i = 0; i < 3; i++) if (ac[i] !== bc[i]) return ac[i] - bc[i];
+              if (!ap || !bp) return (ap ? -1 : 0) - (bp ? -1 : 0);
+              for (let i = 0; i < Math.max(ap.length, bp.length); i++) {
+                const x = ap[i], y = bp[i];
+                if (x === undefined || y === undefined) return x === undefined ? -1 : 1;
+                const nx = /^\d+$/.test(x), ny = /^\d+$/.test(y);
+                if (nx && ny) { if (+x !== +y) return +x - +y; }
+                else if (nx !== ny) return nx ? -1 : 1;
+                else if (x !== y) return x < y ? -1 : 1;
+              }
+              return 0;
+            };
+            const vs = [tags.latest, tags.beta].filter(Boolean).sort(cmp);
+            process.stdout.write(vs[vs.length - 1]);
+          ')
+          # The wrapper pins the engine version it supports as a peer
+          # dependency, so install exactly that engine instead of engine@latest
+          # (which fails to resolve whenever the engine is ahead of the wrapper).
+          peer=$(npm view "@tik-choco/mistlib-web@${web}" 'peerDependencies.@tik-choco/mistlib')
+          echo "wrapper=${web} engine=${peer}"
+          npm install --no-save "@tik-choco/mistlib-web@${web}" "@tik-choco/mistlib@${peer}"
           node -e "for (const p of ['@tik-choco/mistlib', '@tik-choco/mistlib-web']) console.log(p, JSON.parse(require('fs').readFileSync('node_modules/' + p + '/package.json', 'utf8')).version)"
 
       - name: Build

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { DELIVERY_RELIABLE, EVENT_PEER_CONNECTED, EVENT_PEER_DISCONNECTED, EVENT_RAW, MEDIA_EVENT_TRACK_ADDED, MEDIA_EVENT_TRACK_REMOVED } from '@tik-choco/mistlib-web';
 import { renderHook, act } from "@testing-library/preact";
 import { useScreenShare } from "./useScreenShare";
 
@@ -11,7 +12,8 @@ let rawListener:
   | ((eventType: number, fromId: string, payload: unknown, roomId: string) => void)
   | null = null;
 
-vi.mock("../lib/mistClient", () => ({
+vi.mock("../lib/mistClient", async () => ({
+  ...await vi.importActual<typeof import('@tik-choco/mistlib-web')>('@tik-choco/mistlib-web'),
   getNode: vi.fn(async () => ({
     registerLocalTrack,
     unpublishLocalTrack,
@@ -33,13 +35,9 @@ vi.mock("../lib/mistClient", () => ({
       };
     },
   ),
-  isRawEvent: (eventType: number) => eventType === 0,
+  isRawEvent: (eventType: number) => eventType === EVENT_RAW,
   // Tests pass the decoded object directly as the payload.
   decodeRawPayload: (payload: unknown) => payload,
-  MEDIA_EVENT_TRACK_ADDED: 100,
-  MEDIA_EVENT_TRACK_REMOVED: 101,
-  EVENT_PEER_DISCONNECTED: 6,
-  DELIVERY_RELIABLE: 0,
 }));
 
 function makeTrack(id = "track-1", kind = "video") {
@@ -266,7 +264,7 @@ describe("useScreenShare", () => {
 
     const remoteTrack = { id: "remote-1" };
     await act(async () => {
-      mediaListener?.(100, {
+      mediaListener?.(MEDIA_EVENT_TRACK_ADDED, {
         fromId: "peer-1",
         trackId: "remote-1",
         kind: "video",
@@ -278,7 +276,7 @@ describe("useScreenShare", () => {
     expect(result.current.remoteTracks[0].trackId).toBe("remote-1");
 
     await act(async () => {
-      mediaListener?.(101, {
+      mediaListener?.(MEDIA_EVENT_TRACK_REMOVED, {
         fromId: "peer-1",
         trackId: "remote-1",
         kind: "video",
@@ -291,7 +289,7 @@ describe("useScreenShare", () => {
   it("ignores our own display track looped back by the mesh", async () => {
     const { result } = renderHook(() => useScreenShare("room-1"));
     await act(async () => {
-      mediaListener?.(100, {
+      mediaListener?.(MEDIA_EVENT_TRACK_ADDED, {
         fromId: "self-node", // our own node id (see mock localNodeId)
         trackId: "mine-1",
         kind: "video",
@@ -305,7 +303,7 @@ describe("useScreenShare", () => {
   it("ignores camera tracks (tc-chat-cam prefix) -- those render in VideoCallStage instead", async () => {
     const { result } = renderHook(() => useScreenShare("room-1"));
     await act(async () => {
-      mediaListener?.(100, {
+      mediaListener?.(MEDIA_EVENT_TRACK_ADDED, {
         fromId: "peer-1",
         trackId: "tc-chat-cam:not-a-screen",
         kind: "video",
@@ -319,14 +317,14 @@ describe("useScreenShare", () => {
   it("keeps one tile per sharer: a re-share replaces the sender's previous track", async () => {
     const { result } = renderHook(() => useScreenShare("room-1"));
     await act(async () => {
-      mediaListener?.(100, {
+      mediaListener?.(MEDIA_EVENT_TRACK_ADDED, {
         fromId: "peer-1",
         trackId: "screen-a",
         kind: "video",
         track: { id: "screen-a" },
         stream: { id: "sa" },
       });
-      mediaListener?.(100, {
+      mediaListener?.(MEDIA_EVENT_TRACK_ADDED, {
         fromId: "peer-1",
         trackId: "screen-b", // same sender re-shares with a new track
         kind: "video",
@@ -339,7 +337,7 @@ describe("useScreenShare", () => {
 
     // A late removal for the stale track must not tear down the current tile.
     await act(async () => {
-      mediaListener?.(101, { fromId: "peer-1", trackId: "screen-a", kind: "video", track: {} });
+      mediaListener?.(MEDIA_EVENT_TRACK_REMOVED, { fromId: "peer-1", trackId: "screen-a", kind: "video", track: {} });
     });
     expect(result.current.remoteTracks).toHaveLength(1);
     expect(result.current.remoteTracks[0].trackId).toBe("screen-b");
@@ -369,7 +367,7 @@ describe("useScreenShare", () => {
     expect(sendMessage).toHaveBeenCalledWith(
       null,
       { type: "tc-chat:screen-share-stopped" },
-      0, // DELIVERY_RELIABLE
+      DELIVERY_RELIABLE,
       "room-1",
     );
   });
@@ -377,7 +375,7 @@ describe("useScreenShare", () => {
   it("removes the sender's tile when their share-stopped broadcast arrives", async () => {
     const { result } = renderHook(() => useScreenShare("room-1"));
     await act(async () => {
-      mediaListener?.(100, {
+      mediaListener?.(MEDIA_EVENT_TRACK_ADDED, {
         fromId: "peer-1",
         trackId: "remote-1",
         kind: "video",
@@ -388,7 +386,7 @@ describe("useScreenShare", () => {
     expect(result.current.remoteTracks).toHaveLength(1);
 
     await act(async () => {
-      rawListener?.(0, "peer-1", { type: "tc-chat:screen-share-stopped" }, "room-1");
+      rawListener?.(EVENT_RAW, "peer-1", { type: "tc-chat:screen-share-stopped" }, "room-1");
     });
     expect(result.current.remoteTracks).toHaveLength(0);
   });
@@ -396,14 +394,14 @@ describe("useScreenShare", () => {
   it("removes a peer's tile when the peer disconnects (no broadcast ever arrives)", async () => {
     const { result } = renderHook(() => useScreenShare("room-1"));
     await act(async () => {
-      mediaListener?.(100, {
+      mediaListener?.(MEDIA_EVENT_TRACK_ADDED, {
         fromId: "peer-1",
         trackId: "remote-1",
         kind: "video",
         track: { id: "remote-1" },
         stream: { id: "s1" },
       });
-      mediaListener?.(100, {
+      mediaListener?.(MEDIA_EVENT_TRACK_ADDED, {
         fromId: "peer-2",
         trackId: "remote-2",
         kind: "video",
@@ -414,7 +412,12 @@ describe("useScreenShare", () => {
     expect(result.current.remoteTracks).toHaveLength(2);
 
     await act(async () => {
-      rawListener?.(6, "peer-1", null, ""); // EVENT_PEER_DISCONNECTED
+      rawListener?.(EVENT_PEER_CONNECTED, "peer-1", new TextEncoder().encode("joined"), "");
+    });
+    expect(result.current.remoteTracks).toHaveLength(2);
+
+    await act(async () => {
+      rawListener?.(EVENT_PEER_DISCONNECTED, "peer-1", new TextEncoder().encode("left"), "");
     });
     expect(result.current.remoteTracks).toHaveLength(1);
     expect(result.current.remoteTracks[0].fromId).toBe("peer-2");
@@ -485,7 +488,7 @@ describe("useScreenShare", () => {
     const remoteTrack = makeTrack("remote-1");
     const { result } = renderHook(() => useScreenShare("room-1"));
     await act(async () => {
-      mediaListener?.(100, {
+      mediaListener?.(MEDIA_EVENT_TRACK_ADDED, {
         fromId: "peer-1",
         trackId: "remote-1",
         kind: "video",

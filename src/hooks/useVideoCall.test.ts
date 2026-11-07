@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { DELIVERY_RELIABLE, EVENT_PEER_CONNECTED, EVENT_PEER_DISCONNECTED, EVENT_RAW, MEDIA_EVENT_TRACK_ADDED, MEDIA_EVENT_TRACK_REMOVED } from '@tik-choco/mistlib-web';
 import { renderHook, act } from "@testing-library/preact";
 import { useVideoCall } from "./useVideoCall";
 
@@ -11,7 +12,8 @@ let eventListener:
   | ((eventType: number, fromId: string, payload: unknown, roomId: string) => void)
   | null = null;
 
-vi.mock("../lib/mistClient", () => ({
+vi.mock("../lib/mistClient", async () => ({
+  ...await vi.importActual<typeof import('@tik-choco/mistlib-web')>('@tik-choco/mistlib-web'),
   getNode: vi.fn(async () => ({
     registerLocalTrack,
     unpublishLocalTrack,
@@ -35,12 +37,8 @@ vi.mock("../lib/mistClient", () => ({
       };
     },
   ),
-  isRawEvent: (eventType: number) => eventType === 1,
+  isRawEvent: (eventType: number) => eventType === EVENT_RAW,
   decodeRawPayload: (payload: unknown) => payload,
-  MEDIA_EVENT_TRACK_ADDED: 100,
-  MEDIA_EVENT_TRACK_REMOVED: 101,
-  EVENT_PEER_DISCONNECTED: 2,
-  DELIVERY_RELIABLE: 0,
 }));
 
 function makeTrack(id = "track-1", kind = "video") {
@@ -107,7 +105,7 @@ describe("useVideoCall", () => {
     expect(sendMessage).toHaveBeenCalledWith(
       null,
       expect.objectContaining({ type: "tc-chat:camera-stopped" }),
-      0,
+      DELIVERY_RELIABLE,
       "room-1",
     );
   });
@@ -116,7 +114,7 @@ describe("useVideoCall", () => {
     const { result } = renderHook(() => useVideoCall("room-1"));
 
     await act(async () => {
-      mediaListener?.(100, {
+      mediaListener?.(MEDIA_EVENT_TRACK_ADDED, {
         fromId: "peer-1",
         trackId: "tc-chat-cam:remote-1",
         kind: "video",
@@ -128,7 +126,7 @@ describe("useVideoCall", () => {
     expect(result.current.remoteTracks[0].trackId).toBe("tc-chat-cam:remote-1");
 
     await act(async () => {
-      mediaListener?.(101, {
+      mediaListener?.(MEDIA_EVENT_TRACK_REMOVED, {
         fromId: "peer-1",
         trackId: "tc-chat-cam:remote-1",
         kind: "video",
@@ -141,7 +139,7 @@ describe("useVideoCall", () => {
   it("ignores our own camera track looped back by the mesh", async () => {
     const { result } = renderHook(() => useVideoCall("room-1"));
     await act(async () => {
-      mediaListener?.(100, {
+      mediaListener?.(MEDIA_EVENT_TRACK_ADDED, {
         fromId: "self-node",
         trackId: "tc-chat-cam:mine-1",
         kind: "video",
@@ -155,7 +153,7 @@ describe("useVideoCall", () => {
   it("ignores screen-share tracks (tc-chat-screen prefix) -- those belong to useScreenShare", async () => {
     const { result } = renderHook(() => useVideoCall("room-1"));
     await act(async () => {
-      mediaListener?.(100, {
+      mediaListener?.(MEDIA_EVENT_TRACK_ADDED, {
         fromId: "peer-1",
         trackId: "tc-chat-screen:not-a-camera",
         kind: "video",
@@ -169,14 +167,14 @@ describe("useVideoCall", () => {
   it("keeps one tile per sender: a re-start replaces the sender's previous track", async () => {
     const { result } = renderHook(() => useVideoCall("room-1"));
     await act(async () => {
-      mediaListener?.(100, {
+      mediaListener?.(MEDIA_EVENT_TRACK_ADDED, {
         fromId: "peer-1",
         trackId: "tc-chat-cam:cam-a",
         kind: "video",
         track: makeTrack("cam-a"),
         stream: { id: "sa" },
       });
-      mediaListener?.(100, {
+      mediaListener?.(MEDIA_EVENT_TRACK_ADDED, {
         fromId: "peer-1",
         trackId: "tc-chat-cam:cam-b",
         kind: "video",
@@ -191,7 +189,7 @@ describe("useVideoCall", () => {
   it("drops a sender's tile on the camera-stopped wire", async () => {
     const { result } = renderHook(() => useVideoCall("room-1"));
     await act(async () => {
-      mediaListener?.(100, {
+      mediaListener?.(MEDIA_EVENT_TRACK_ADDED, {
         fromId: "peer-1",
         trackId: "tc-chat-cam:cam-a",
         kind: "video",
@@ -202,7 +200,7 @@ describe("useVideoCall", () => {
     expect(result.current.remoteTracks).toHaveLength(1);
 
     await act(async () => {
-      eventListener?.(1, "peer-1", { type: "tc-chat:camera-stopped" }, "room-1");
+      eventListener?.(EVENT_RAW, "peer-1", { type: "tc-chat:camera-stopped" }, "room-1");
     });
     expect(result.current.remoteTracks).toHaveLength(0);
   });
@@ -272,7 +270,7 @@ describe("useVideoCall", () => {
   it("drops a sender's tile on EVENT_PEER_DISCONNECTED", async () => {
     const { result } = renderHook(() => useVideoCall("room-1"));
     await act(async () => {
-      mediaListener?.(100, {
+      mediaListener?.(MEDIA_EVENT_TRACK_ADDED, {
         fromId: "peer-1",
         trackId: "tc-chat-cam:cam-a",
         kind: "video",
@@ -283,7 +281,12 @@ describe("useVideoCall", () => {
     expect(result.current.remoteTracks).toHaveLength(1);
 
     await act(async () => {
-      eventListener?.(2, "peer-1", null, "room-1");
+      eventListener?.(EVENT_PEER_CONNECTED, "peer-1", new TextEncoder().encode("joined"), "room-1");
+    });
+    expect(result.current.remoteTracks).toHaveLength(1);
+
+    await act(async () => {
+      eventListener?.(EVENT_PEER_DISCONNECTED, "peer-1", new TextEncoder().encode("left"), "room-1");
     });
     expect(result.current.remoteTracks).toHaveLength(0);
   });
