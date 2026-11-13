@@ -1,5 +1,5 @@
 import type { SignedWire } from '../lib/chatStore';
-import { GLOBAL_ROOM_ID, PERSONAL_ROOM_ID } from '../lib/util';
+import { GLOBAL_ROOM_ID, isLocalOnlyRoom } from '../lib/util';
 import { verifyWire } from '../lib/wireSign';
 export type EscrowMode = 'auto' | 'custom' | 'off';
 export interface EscrowSetting { mode: EscrowMode; mistlRoom: string }
@@ -7,7 +7,7 @@ export interface EscrowConfig extends SignedWire, EscrowSetting {
   type: 'tc-chat:escrow-config'; v: 1; id: string; roomId: string;
   fromId: string; timestamp: number; rev: number; signature: string;
 }
-export const eligibleRoom = (room: string | null): room is string => !!room && room !== GLOBAL_ROOM_ID && room !== PERSONAL_ROOM_ID;
+export const eligibleRoom = (room: string | null): room is string => !!room && room !== GLOBAL_ROOM_ID && !isLocalOnlyRoom(room);
 export const validCustomRoom = (room: string, appRoom: string) => /^[A-Za-z0-9_./:-]{1,96}$/.test(room) && room !== appRoom && eligibleRoom(room);
 export function parseConfig(value: unknown, roomId: string): EscrowConfig | null {
   if (!eligibleRoom(roomId) || !value || typeof value !== 'object') return null;

@@ -1,10 +1,12 @@
 import { escrow } from "../catalog/escrow";
+import { ai } from "../catalog/ai";
 import type { Messages } from "../messages";
 
 // Français — full translation (informal "tu" register, matching the tone of
 // chat apps like WhatsApp/Discord in French).
 export const fr: Messages = {
   escrow: escrow.fr,
+  ai: ai.fr,
   common: {
     cancel: "Annuler",
     save: "Enregistrer",

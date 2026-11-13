@@ -34,6 +34,24 @@ export function isPersonalRoom(roomId: string | null): boolean {
   return roomId === PERSONAL_ROOM_ID;
 }
 
+/**
+ * The AI chat space. Same shape and same promise as PERSONAL_ROOM_ID — a pinned
+ * slot that switches like a room but is never a swarm topic (the colon keeps it
+ * out of `isValidRoomId`'s reach for the same reason). A prompt leaves the
+ * device only toward the model provider the user picked, never onto a tc-chat
+ * room; conversations persist in the OPFS KV store (aiChatStore.ts).
+ */
+export const AI_ROOM_ID = "tc-chat:ai";
+
+export function isAiRoom(roomId: string | null): boolean {
+  return roomId === AI_ROOM_ID;
+}
+
+/** True for every built-in space that must never be joined as a swarm topic. */
+export function isLocalOnlyRoom(roomId: string | null): boolean {
+  return isPersonalRoom(roomId) || isAiRoom(roomId);
+}
+
 /** The four surfaces of a room, in the order the tab bar shows them. */
 export const ROOM_TABS = ["chat", "board", "calendar", "gallery"] as const;
 export type RoomTab = (typeof ROOM_TABS)[number];

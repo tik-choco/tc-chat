@@ -17,6 +17,7 @@ import {
   RefreshCw,
   Search,
   NotebookPen,
+  Sparkles,
 } from "lucide-preact";
 import type { RoomMeta } from "../lib/chatStore";
 import { isValidRoomId } from "../lib/chatStore";
@@ -26,7 +27,7 @@ import type { Friend } from "../lib/friendsStore";
 import { identityFor, type ProfileDirectory } from "../lib/profileDirectory";
 import type { RoomMetaRecord } from "../lib/roomMetaStore";
 import type { Theme } from "../hooks/useTheme";
-import { GLOBAL_ROOM_ID, PERSONAL_ROOM_ID, newId } from "../lib/util";
+import { AI_ROOM_ID, GLOBAL_ROOM_ID, PERSONAL_ROOM_ID, newId } from "../lib/util";
 import { useT } from "../lib/i18n";
 import { Avatar } from "./Avatar";
 
@@ -252,6 +253,25 @@ export function Sidebar(props: {
                 <span class="room-item-text">
                   <span class="room-name">{t("personal.title")}</span>
                   <span class="room-id">{t("personal.subtitle")}</span>
+                </span>
+              </button>
+            </div>
+          </li>
+          {/* The AI chat space: same pinned, never-joined shape as the notes
+              space above (see AI_ROOM_ID). */}
+          <li class="room-row">
+            <div class="room-row-main">
+              <button
+                type="button"
+                class={`room-item room-item--personal room-item--ai ${
+                  activeRoomId === AI_ROOM_ID ? "room-item--active" : ""
+                }`}
+                onClick={() => onSelectRoom(AI_ROOM_ID)}
+              >
+                <Sparkles size={16} class="room-icon" />
+                <span class="room-item-text">
+                  <span class="room-name">{t("ai.title")}</span>
+                  <span class="room-id">{t("ai.subtitle")}</span>
                 </span>
               </button>
             </div>

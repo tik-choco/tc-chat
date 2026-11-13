@@ -39,6 +39,7 @@ import { JoinRoomBanner } from "./components/JoinRoomBanner";
 import { SearchPanel } from "./components/SearchPanel";
 import { HistoryArchivePanel } from "./components/HistoryArchivePanel";
 import { PersonalChat } from "./components/PersonalChat";
+import { AiChat } from "./components/AiChat";
 import { useRooms } from "./hooks/useRooms";
 import { useFriends } from "./hooks/useFriends";
 import { useChatRoom } from "./hooks/useChatRoom";
@@ -81,6 +82,7 @@ import { ensureDidIdentity, ensureSharedDidIdentity } from "./crypto/didIdentity
 import {
   GLOBAL_ROOM_ID,
   isPersonalRoom,
+  isAiRoom,
   hashForLocation,
   locationFromHash,
   type AppLocation,
@@ -170,7 +172,14 @@ export function App() {
   // received under this id. useChatRoom is the load-bearing one — it owns the
   // only joinRoomAsync call in the app, so cutting it here is what makes the
   // "never broadcast" promise structural rather than a matter of care.
+  //
+  // The AI chat space (AI_ROOM_ID) follows the same rule: its prompts go only to
+  // the model provider the user picked, never onto a tc-chat swarm topic, so it
+  // is gated here exactly like the notes space. `isLocalOnly` is the gate;
+  // `isPersonal`/`isAi` only pick which surface renders.
   const isPersonal = isPersonalRoom(activeRoomId);
+  const isAi = isAiRoom(activeRoomId);
+  const isLocalOnly = isPersonal || isAi;
   const {
     friends,
     sendFriendRequest,
@@ -178,7 +187,7 @@ export function App() {
     declineFriendRequest,
     cancelFriendRequest,
     removeFriend,
-  } = useFriends(isPersonal ? null : activeRoomId, nodeId, roomDisplayName);
+  } = useFriends(isLocalOnly ? null : activeRoomId, nodeId, roomDisplayName);
   const personalEvents = usePersonalEvents();
   const personalNotes = usePersonalNotes();
   const {
@@ -193,7 +202,7 @@ export function App() {
     deleteMessage,
     typingNames,
     notifyTyping,
-  } = useChatRoom(username && !isPersonal ? activeRoomId : null, roomDisplayName);
+  } = useChatRoom(username && !isLocalOnly ? activeRoomId : null, roomDisplayName);
   // The board is the "board" surface of the same post engine — recursive
   // (parentId), so a comment is just a post whose parentId points at another.
   const {
@@ -442,6 +451,8 @@ export function App() {
   // peer's own local room label; DMs and the global room never have one.
   const roomName = isPersonal
     ? t("personal.title")
+    : isAi
+    ? t("ai.title")
     : (!isDm && sharedRoomMeta?.name) ||
       activeRoom?.name ||
       invitedName ||
@@ -461,7 +472,7 @@ export function App() {
   // The personal space is deliberately out of scope: postSearch reads
   // chatStore's localStorage post lists, and notes live in the OPFS KV store
   // instead — including it would only ever add a room that never matches.
-  if (!isPersonal && !searchRooms.some((r) => r.id === activeRoomId)) {
+  if (!isLocalOnly && !searchRooms.some((r) => r.id === activeRoomId)) {
     searchRooms.push({ id: activeRoomId, name: roomName });
   }
 
@@ -475,7 +486,7 @@ export function App() {
 
   const canEditRoomIdentity = status === "joined" && activeRoomId !== GLOBAL_ROOM_ID && !isDm;
   // There is nobody to invite to a space only this device can see.
-  const canInvite = activeRoomId !== GLOBAL_ROOM_ID && !isDm && !isPersonal;
+  const canInvite = activeRoomId !== GLOBAL_ROOM_ID && !isDm && !isLocalOnly;
   // A room reached by link (invite or plain deep link) is fully usable without
   // being in the room list — the swarm join follows the URL — so the only thing
   // missing is a way back to it later. Offer to add it rather than doing it
@@ -485,7 +496,7 @@ export function App() {
   const showJoinBanner =
     activeRoomId !== GLOBAL_ROOM_ID &&
     !isDm &&
-    !isPersonal &&
+    !isLocalOnly &&
     !activeRoom &&
     !joinDismissed.includes(activeRoomId);
 
@@ -548,7 +559,10 @@ export function App() {
           onClick={() => setSidebarOpen(false)}
         />
       )}
-      {isPersonal ? (
+      {isAi ? (
+        // Like the notes space: one surface, no room shell, nothing joined.
+        <AiChat onOpenSidebar={() => setSidebarOpen(true)} />
+      ) : isPersonal ? (
         // A single surface, not the four-tab room shell: the board/calendar/
         // gallery tabs are all backed by the swarm-fed post engine, which this
         // space deliberately isn't wired to.

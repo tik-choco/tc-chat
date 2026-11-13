@@ -2,6 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   GLOBAL_ROOM_ID,
   PERSONAL_ROOM_ID,
+  AI_ROOM_ID,
+  isAiRoom,
+  isLocalOnlyRoom,
   isPersonalRoom,
   hashForLocation,
   hashForRoomId,
@@ -130,5 +133,32 @@ describe("the personal notes space", () => {
   // visitor's own notes — so the hash codec must survive the colon.
   it("survives a round trip through the URL hash", () => {
     expect(roomIdFromHash(hashForRoomId(PERSONAL_ROOM_ID))).toBe(PERSONAL_ROOM_ID);
+  });
+});
+
+describe("the AI chat space", () => {
+  // Same guarantees as the notes space: never a joinable swarm topic, never
+  // confused with another built-in space, and still deep-linkable.
+  it("cannot be reached as a joinable room id", () => {
+    expect(isValidRoomId(AI_ROOM_ID)).toBe(false);
+  });
+
+  it("is distinct from the other built-in spaces", () => {
+    expect(AI_ROOM_ID).not.toBe(GLOBAL_ROOM_ID);
+    expect(AI_ROOM_ID).not.toBe(PERSONAL_ROOM_ID);
+    expect(isAiRoom(PERSONAL_ROOM_ID)).toBe(false);
+    expect(isPersonalRoom(AI_ROOM_ID)).toBe(false);
+  });
+
+  it("is local-only, like the notes space, and nothing else is", () => {
+    expect(isLocalOnlyRoom(AI_ROOM_ID)).toBe(true);
+    expect(isLocalOnlyRoom(PERSONAL_ROOM_ID)).toBe(true);
+    expect(isLocalOnlyRoom(GLOBAL_ROOM_ID)).toBe(false);
+    expect(isLocalOnlyRoom("ai")).toBe(false);
+    expect(isLocalOnlyRoom(null)).toBe(false);
+  });
+
+  it("survives a round trip through the URL hash", () => {
+    expect(roomIdFromHash(hashForRoomId(AI_ROOM_ID))).toBe(AI_ROOM_ID);
   });
 });

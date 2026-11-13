@@ -15,6 +15,7 @@ import { search } from "./catalog/search";
 import { notifications } from "./catalog/notifications";
 import { archive } from "./catalog/archive";
 import { personal } from "./catalog/personal";
+import { ai } from "./catalog/ai";
 
 /**
  * The full message tree, assembled from the per-domain catalogs. `ja` is the
@@ -40,6 +41,7 @@ export const ja = {
   notifications: notifications.ja,
   archive: archive.ja,
   personal: personal.ja,
+  ai: ai.ja,
 };
 
 export const en: Messages = {
@@ -60,6 +62,7 @@ export const en: Messages = {
   notifications: notifications.en,
   archive: archive.en,
   personal: personal.en,
+  ai: ai.en,
 };
 
 export type Messages = typeof ja;
