@@ -42,6 +42,41 @@ describe("MarkdownView end-to-end (real parseMarkdown -> renderBlocks)", () => {
     expect(container.querySelector("img")).toBeNull();
     expect(container.textContent).toContain("<img src=x onerror=alert(1)>");
   });
+
+  it("renders table cells with alignment and inline formatting when enabled", () => {
+    const text = "| **Left** | Center | Right | Default |\n| :- | :-: | -: | - |\n| `code` | [site](https://example.com) | 3 | <img src=x> |";
+    const { container } = render(<MarkdownView text={text} tables />);
+    const table = container.querySelector("div.md-table-wrap > table.md-table")!;
+    expect(table).toBeTruthy();
+    const headers = table.querySelectorAll<HTMLTableCellElement>("thead > tr > th");
+    const cells = table.querySelectorAll<HTMLTableCellElement>("tbody > tr > td");
+    expect(headers).toHaveLength(4);
+    expect(cells).toHaveLength(4);
+    expect(Array.from(headers, (cell) => cell.style.textAlign)).toEqual(["left", "center", "right", ""]);
+    expect(Array.from(cells, (cell) => cell.style.textAlign)).toEqual(["left", "center", "right", ""]);
+    expect(headers[3].hasAttribute("style")).toBe(false);
+    expect(cells[3].hasAttribute("style")).toBe(false);
+    expect(headers[0].querySelector("strong")!.textContent).toBe("Left");
+    expect(cells[0].querySelector("code")!.textContent).toBe("code");
+    expect(cells[1].querySelector("a")!.getAttribute("href")).toBe("https://example.com");
+    expect(cells[3].textContent).toBe("<img src=x>");
+    expect(table.querySelector("img")).toBeNull();
+  });
+
+  it("omits tbody when a table has no body rows", () => {
+    const { container } = render(<MarkdownView text={"| a | b |\n| - | - |"} tables />);
+    expect(container.querySelector("table thead th")!.textContent).toBe("a");
+    expect(container.querySelector("table tbody")).toBeNull();
+  });
+
+  it("does not render a table when the option is omitted or false", () => {
+    const text = "| a | b |\n| - | - |\n| 1 | 2 |";
+    const { container, rerender } = render(<MarkdownView text={text} />);
+    expect(container.querySelector("table")).toBeNull();
+    expect(container.querySelector("p")!.textContent).toBe("| a | b || - | - || 1 | 2 |");
+    rerender(<MarkdownView text={text} tables={false} />);
+    expect(container.querySelector("table")).toBeNull();
+  });
 });
 
 describe("renderBlocks: block-level mapping", () => {

@@ -224,3 +224,159 @@ describe("parseMarkdown", () => {
     }
   });
 });
+
+describe("parseMarkdown: opt-in tables", () => {
+  const options = { tables: true };
+
+  function table(text: string): Extract<MdBlock, { type: "table" }> {
+    const blocks = parseMarkdown(text, options);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].type).toBe("table");
+    return blocks[0] as Extract<MdBlock, { type: "table" }>;
+  }
+
+  it("parses a basic table with header and body cells", () => {
+    expect(table("| Name | Count |\n| --- | --- |\n| Apples | 2 |")).toEqual({
+      type: "table",
+      align: [null, null],
+      header: [[{ type: "text", value: "Name" }], [{ type: "text", value: "Count" }]],
+      rows: [[[{ type: "text", value: "Apples" }], [{ type: "text", value: "2" }]]],
+    });
+  });
+
+  it("parses left, center, right, and unspecified column alignment", () => {
+    expect(table("| L | C | R | N |\n| :- | :-: | -: | - |").align).toEqual([
+      "left", "center", "right", null,
+    ]);
+  });
+
+  it("accepts rows without outer pipes and strips only one outer pipe", () => {
+    const result = table("a | b\n- | -\n1 | 2");
+    expect(result.header).toEqual([[{ type: "text", value: "a" }], [{ type: "text", value: "b" }]]);
+    expect(result.rows).toEqual([[[{ type: "text", value: "1" }], [{ type: "text", value: "2" }]]]);
+    expect(table("|| x ||\n|-|-|-|").header).toEqual([[], [{ type: "text", value: "x" }], []]);
+  });
+
+  it("unescapes escaped pipes in header, body, and code cells before inline parsing", () => {
+    const result = table("| a \\| b | code | tail |\n| - | - | - |\n| c \\| d | `x\\|y` | end\\| |");
+    expect(result.header[0]).toEqual([{ type: "text", value: "a | b" }]);
+    expect(result.rows[0]).toEqual([
+      [{ type: "text", value: "c | d" }],
+      [{ type: "code", value: "x|y" }],
+      [{ type: "text", value: "end|" }],
+    ]);
+  });
+
+  it("recognizes escaped pipes by backslash parity, including at the end of a row", () => {
+    const slashes = "\\".repeat(2);
+    const result = table(`a ${slashes}| b\n- | -\nvalue | end\\|`);
+    expect(result.header).toEqual([
+      [{ type: "text", value: `a ${slashes}` }],
+      [{ type: "text", value: "b" }],
+    ]);
+    expect(result.rows[0][1]).toEqual([{ type: "text", value: "end|" }]);
+    expect(parseMarkdown("a \\| b\n-", options)).toEqual(parseMarkdown("a \\| b\n-"));
+  });
+
+  it("splits unescaped pipes inside backticks", () => {
+    expect(table("| `x|y` | z |\n| - | - | - |").header).toEqual([
+      [{ type: "text", value: "`x" }],
+      [{ type: "text", value: "y`" }],
+      [{ type: "text", value: "z" }],
+    ]);
+  });
+
+  it("parses inline markdown within cells", () => {
+    const result = table("| **bold** | `code` | [site](https://example.com) |\n| - | - | - |");
+    expect(result.header).toEqual([
+      [{ type: "strong", children: [{ type: "text", value: "bold" }] }],
+      [{ type: "code", value: "code" }],
+      [{ type: "link", href: "https://example.com", children: [{ type: "text", value: "site" }] }],
+    ]);
+  });
+
+  it("pads short rows with empty cells and truncates long rows", () => {
+    const result = table("| a | b |\n| - | - |\n| 1 |\n| 2 | 3 | 4 |");
+    expect(result.rows).toEqual([
+      [[{ type: "text", value: "1" }], []],
+      [[{ type: "text", value: "2" }], [{ type: "text", value: "3" }]],
+    ]);
+  });
+
+  it("leaves mismatched or invalid delimiter rows as paragraphs", () => {
+    for (const text of ["| a | b |\n| --- |\n| 1 | 2 |", "| a | b |\n| --- | :: |", "| a | b |\n| --- | --x | "]) {
+      expect(parseMarkdown(text, options)).toEqual(parseMarkdown(text));
+      expect(parseMarkdown(text, options)[0].type).toBe("paragraph");
+    }
+  });
+
+  it("stops a paragraph before a table without a blank line", () => {
+    const blocks = parseMarkdown("intro text\n| a | b |\n|---|---|\n| 1 | 2 |", options);
+    expect(blocks[0]).toEqual({ type: "paragraph", children: [{ type: "text", value: "intro text" }] });
+    expect(blocks[1]).toEqual({
+      type: "table",
+      align: [null, null],
+      header: [[{ type: "text", value: "a" }], [{ type: "text", value: "b" }]],
+      rows: [[[{ type: "text", value: "1" }], [{ type: "text", value: "2" }]]],
+    });
+    expect(blocks).toHaveLength(2);
+  });
+
+  it("ends a table at a blank line or a line without an unescaped pipe", () => {
+    const prefix = "| a | b |\n| - | - |\n| 1 | 2 |";
+    for (const suffix of ["\n\ncontinued", "\ncontinued", "\ncontinued \\| escaped"]) {
+      const blocks = parseMarkdown(prefix + suffix, options);
+      expect(blocks).toHaveLength(2);
+      expect(blocks[0].type).toBe("table");
+      expect(blocks[1].type).toBe("paragraph");
+    }
+  });
+
+  it("ends a table when a different block starts, even if its line contains a pipe", () => {
+    const blocks = parseMarkdown("| a | b |\n| - | - |\n# heading | here\n- item | here", options);
+    expect(blocks.map((block) => block.type)).toEqual(["table", "heading", "list"]);
+    expect((blocks[0] as Extract<MdBlock, { type: "table" }>).rows).toEqual([]);
+  });
+
+  it("propagates the option through nested blockquotes", () => {
+    const text = "> > | a | b |\n> > | - | - |\n> > | 1 | 2 |";
+    const blocks = parseMarkdown(text, options);
+    expect(blocks).toEqual([{
+      type: "blockquote",
+      children: [{
+        type: "blockquote",
+        children: [{
+          type: "table",
+          align: [null, null],
+          header: [[{ type: "text", value: "a" }], [{ type: "text", value: "b" }]],
+          rows: [[[{ type: "text", value: "1" }], [{ type: "text", value: "2" }]]],
+        }],
+      }],
+    }]);
+    expect(parseMarkdown(text, { tables: false })).toEqual(parseMarkdown(text));
+  });
+
+  it("treats incomplete headers and standalone delimiter rows as paragraphs", () => {
+    for (const text of ["| a | b |", "| --- | --- |", "a | b\n---"]) {
+      expect(parseMarkdown(text, options)).toEqual(parseMarkdown(text));
+      expect(parseMarkdown(text, options)[0].type).toBe("paragraph");
+    }
+  });
+
+  it("preserves the old paragraph output when tables are omitted or false", () => {
+    const text = "| a | b |\n| --- | --- |\n| 1 | 2 |";
+    const oldOutput: MdBlock[] = [{
+      type: "paragraph",
+      children: [
+        { type: "text", value: "| a | b |" },
+        { type: "br" },
+        { type: "text", value: "| --- | --- |" },
+        { type: "br" },
+        { type: "text", value: "| 1 | 2 |" },
+      ],
+    }];
+    expect(parseMarkdown(text)).toEqual(oldOutput);
+    expect(parseMarkdown(text, { tables: false })).toEqual(oldOutput);
+    expect(parseMarkdown(text, options)[0].type).toBe("table");
+  });
+});

@@ -278,7 +278,7 @@ function MessageItem(props: {
         <>
           {(message.content || streaming) && (
             <div class={`ai-msg-body${isUser ? "" : " md-body"}`}>
-              {isUser ? message.content : <MarkdownView text={message.content} />}
+              {isUser ? message.content : <MarkdownView text={message.content} tables />}
               {streaming && <span class="ai-caret" role="status" aria-label={t("ai.generating")} />}
             </div>
           )}

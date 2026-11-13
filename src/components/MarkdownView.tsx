@@ -86,6 +86,41 @@ function renderBlock(block: MdBlock, key: string): VNode {
           {block.items.map((item, i) => renderListItem(item, `${key}-${i}`))}
         </ul>
       );
+    case "table":
+      return (
+        <div key={key} class="md-table-wrap">
+          <table class="md-table">
+            <thead>
+              <tr>
+                {block.header.map((cell, column) => {
+                  const align = block.align[column];
+                  return (
+                    <th key={column} style={align == null ? undefined : { textAlign: align }}>
+                      {renderInline(cell, `${key}-h-${column}`)}
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            {block.rows.length > 0 && (
+              <tbody>
+                {block.rows.map((row, rowIndex) => (
+                  <tr key={rowIndex}>
+                    {row.map((cell, column) => {
+                      const align = block.align[column];
+                      return (
+                        <td key={column} style={align == null ? undefined : { textAlign: align }}>
+                          {renderInline(cell, `${key}-${rowIndex}-${column}`)}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            )}
+          </table>
+        </div>
+      );
     default:
       return null as unknown as VNode;
   }
@@ -97,7 +132,7 @@ export function renderBlocks(blocks: MdBlock[], keyPrefix = "b"): VNode[] {
   return blocks.map((block, i) => renderBlock(block, `${keyPrefix}-${i}`));
 }
 
-export function MarkdownView(props: { text: string }) {
-  const blocks = parseMarkdown(props.text);
+export function MarkdownView(props: { text: string; tables?: boolean }) {
+  const blocks = parseMarkdown(props.text, { tables: props.tables });
   return <>{renderBlocks(blocks)}</>;
 }

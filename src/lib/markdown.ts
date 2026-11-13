@@ -8,9 +8,10 @@
 //           [text](http(s)-url), bare http(s) URLs (autolink)
 //   block:  ``` fenced code (optional language tag), > blockquote,
 //           - / * unordered lists, 1. ordered lists, # / ## / ### headings,
-//           paragraphs (single newline inside a paragraph = hard break)
+//           paragraphs (single newline inside a paragraph = hard break),
+//           GFM pipe tables (opt-in)
 // Not supported on purpose: images (media goes through the CID pipeline),
-// tables, nested lists, raw HTML. Unknown syntax renders as literal text.
+// nested lists, raw HTML. Unknown syntax renders as literal text.
 //
 // Link safety: link/autolink hrefs are validated to http:/https: at parse
 // time (reuse extractHttpUrls semantics) — javascript:, data:, etc. must
@@ -32,23 +33,30 @@ export interface MdListItem {
   children: MdInline[];
 }
 
+export type MdTableAlign = "left" | "center" | "right" | null;
+
 export type MdBlock =
   | { type: "paragraph"; children: MdInline[] }
   | { type: "heading"; level: 1 | 2 | 3; children: MdInline[] }
   | { type: "codeBlock"; lang?: string; value: string } // verbatim, no inline parsing
   | { type: "blockquote"; children: MdBlock[] }
-  | { type: "list"; ordered: boolean; start?: number; items: MdListItem[] };
+  | { type: "list"; ordered: boolean; start?: number; items: MdListItem[] }
+  | { type: "table"; align: MdTableAlign[]; header: MdInline[][]; rows: MdInline[][][] };
+
+export interface MarkdownOptions {
+  /** GFM pipe tables. Off by default (peer-supplied chat content). */
+  tables?: boolean;
+}
 
 /** Parse message text into block-level AST. Never throws: any input that
  * doesn't match a construct falls back to literal text. */
-export function parseMarkdown(text: string): MdBlock[] {
+export function parseMarkdown(text: string, options?: MarkdownOptions): MdBlock[] {
   if (!text) return [];
   try {
-    return parseBlocks(text);
+    return parseBlocks(text, options);
   } catch {
-    // Should be unreachable (the parser is pure string scanning with no
-    // recursion depth beyond one blockquote level), but per contract this
-    // must never throw for remote, untrusted input.
+    // Even if nested blockquotes exceed runtime limits, parsing remote,
+    // untrusted input must never throw.
     return [{ type: "paragraph", children: [{ type: "text", value: text }] }];
   }
 }
@@ -80,7 +88,61 @@ function isBlockStart(line: string): boolean {
   );
 }
 
-function parseBlocks(text: string): MdBlock[] {
+/** A pipe is escaped when preceded by an odd number of backslashes. */
+function isEscapedPipe(line: string, index: number): boolean {
+  let backslashes = 0;
+  for (let i = index - 1; i >= 0 && line[i] === "\\"; i--) backslashes++;
+  return backslashes % 2 === 1;
+}
+
+function hasUnescapedPipe(line: string): boolean {
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === "|" && !isEscapedPipe(line, i)) return true;
+  }
+  return false;
+}
+
+/** Split a row and unescape pipes before parsing the cell contents. */
+function splitTableRow(line: string): string[] {
+  let row = line.trim();
+  if (row.startsWith("|")) row = row.slice(1);
+  if (row.endsWith("|") && !isEscapedPipe(row, row.length - 1)) row = row.slice(0, -1);
+
+  const cells: string[] = [];
+  let cell = "";
+  for (let i = 0; i < row.length; i++) {
+    if (row[i] === "|") {
+      if (isEscapedPipe(row, i)) {
+        cell = cell.slice(0, -1) + "|";
+      } else {
+        cells.push(cell.trim());
+        cell = "";
+      }
+    } else {
+      cell += row[i];
+    }
+  }
+  cells.push(cell.trim());
+  return cells;
+}
+
+/** Return the parsed header and alignment only for a complete table start. */
+function tableStart(lines: string[], index: number): { header: string[]; align: MdTableAlign[] } | null {
+  if (index + 1 >= lines.length || !hasUnescapedPipe(lines[index])) return null;
+  const header = splitTableRow(lines[index]);
+  const delimiters = splitTableRow(lines[index + 1]);
+  if (delimiters.length !== header.length || delimiters.some((cell) => !/^\s*:?-+:?\s*$/.test(cell))) {
+    return null;
+  }
+  const align: MdTableAlign[] = delimiters.map((cell) => {
+    const left = cell.startsWith(":");
+    const right = cell.endsWith(":");
+    return left && right ? "center" : left ? "left" : right ? "right" : null;
+  });
+  return { header, align };
+}
+
+function parseBlocks(text: string, options?: MarkdownOptions): MdBlock[] {
   const lines = text.split("\n");
   const blocks: MdBlock[] = [];
   let i = 0;
@@ -113,7 +175,7 @@ function parseBlocks(text: string): MdBlock[] {
         quoted.push(lines[i].replace(/^>\s?/, ""));
         i++;
       }
-      blocks.push({ type: "blockquote", children: parseBlocks(quoted.join("\n")) });
+      blocks.push({ type: "blockquote", children: parseBlocks(quoted.join("\n"), options) });
       continue;
     }
 
@@ -151,11 +213,29 @@ function parseBlocks(text: string): MdBlock[] {
       continue;
     }
 
+    const table = options?.tables ? tableStart(lines, i) : null;
+    if (table) {
+      i += 2;
+      const rows: MdInline[][][] = [];
+      while (i < lines.length && !isBlank(lines[i]) && hasUnescapedPipe(lines[i]) && !isBlockStart(lines[i])) {
+        const cells = splitTableRow(lines[i]);
+        rows.push(table.header.map((_, column) => parseInline(cells[column] ?? "")));
+        i++;
+      }
+      blocks.push({ type: "table", align: table.align, header: table.header.map((cell) => parseInline(cell)), rows });
+      continue;
+    }
+
     // Paragraph: this line plus every following non-blank line that doesn't
     // start a different block, joined with hard breaks.
     const paraLines: string[] = [line];
     i++;
-    while (i < lines.length && !isBlank(lines[i]) && !isBlockStart(lines[i])) {
+    while (
+      i < lines.length &&
+      !isBlank(lines[i]) &&
+      !isBlockStart(lines[i]) &&
+      !(options?.tables && tableStart(lines, i))
+    ) {
       paraLines.push(lines[i]);
       i++;
     }
