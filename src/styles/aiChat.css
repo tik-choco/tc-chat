@@ -409,7 +409,7 @@
 
 .ai-msg--user .ai-msg-body {
   padding: 0.55rem 0.85rem;
-  border-radius: var(--radius-m) var(--radius-m) var(--radius-xs) var(--radius-m);
+  border-radius: var(--radius-m);
   background: var(--primary-soft-strong);
   border: 1px solid var(--primary-border);
   white-space: pre-wrap;

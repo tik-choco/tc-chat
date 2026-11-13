@@ -62,7 +62,7 @@ const ja = {
   deleteMessageBody: "このメッセージだけが履歴から削除されます。元に戻せません。",
   rename: "名前を変更",
   renameLabel: "チャット名",
-  placeholder: "メッセージを入力…（Enterで送信、Shift+Enterで改行）",
+  placeholder: "メッセージを入力…（Ctrl+Enterで送信、Enterで改行）",
 };
 
 const en: typeof ja = {
@@ -124,7 +124,7 @@ const en: typeof ja = {
   deleteMessageBody: "Only this message is removed from the history. This can't be undone.",
   rename: "Rename",
   renameLabel: "Chat name",
-  placeholder: "Type a message… (Enter to send, Shift+Enter for a new line)",
+  placeholder: "Type a message… (Ctrl+Enter to send, Enter for a new line)",
 };
 
 const zh: typeof ja = {
@@ -186,7 +186,7 @@ const zh: typeof ja = {
   deleteMessageBody: "只会从历史中删除这一条消息，且无法恢复。",
   rename: "重命名",
   renameLabel: "聊天名称",
-  placeholder: "输入消息…（Enter 发送，Shift+Enter 换行）",
+  placeholder: "输入消息…（Ctrl+Enter 发送，Enter 换行）",
 };
 
 const ko: typeof ja = {
@@ -248,7 +248,7 @@ const ko: typeof ja = {
   deleteMessageBody: "이 메시지만 기록에서 삭제되며 되돌릴 수 없습니다.",
   rename: "이름 바꾸기",
   renameLabel: "채팅 이름",
-  placeholder: "메시지를 입력하세요… (Enter로 전송, Shift+Enter로 줄바꿈)",
+  placeholder: "메시지를 입력하세요… (Ctrl+Enter로 전송, Enter로 줄바꿈)",
 };
 
 const es: typeof ja = {
@@ -310,7 +310,7 @@ const es: typeof ja = {
   deleteMessageBody: "Solo se elimina este mensaje del historial. No se puede deshacer.",
   rename: "Renombrar",
   renameLabel: "Nombre del chat",
-  placeholder: "Escribe un mensaje… (Intro para enviar, Mayús+Intro para salto de línea)",
+  placeholder: "Escribe un mensaje… (Ctrl+Intro para enviar, Intro para salto de línea)",
 };
 
 const fr: typeof ja = {
@@ -372,7 +372,7 @@ const fr: typeof ja = {
   deleteMessageBody: "Seul ce message est retiré de l’historique. Cette action est irréversible.",
   rename: "Renommer",
   renameLabel: "Nom de la discussion",
-  placeholder: "Écris un message… (Entrée pour envoyer, Maj+Entrée pour un saut de ligne)",
+  placeholder: "Écris un message… (Ctrl+Entrée pour envoyer, Entrée pour un saut de ligne)",
 };
 
 export const ai = { ja, en, zh, ko, es, fr };

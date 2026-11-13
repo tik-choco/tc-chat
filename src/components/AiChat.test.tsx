@@ -186,29 +186,39 @@ describe("AiChat messages", () => {
 });
 
 describe("AiChat composer", () => {
-  it("Enter sends the text and clears the field", () => {
+  it("Ctrl+Enter sends the text and clears the field", () => {
     const chat = makeChat();
     const { input } = renderChat(chat);
     fireEvent.input(input, { target: { value: "hi ai" } });
-    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.keyDown(input, { key: "Enter", ctrlKey: true });
     expect(chat.send).toHaveBeenCalledWith("hi ai");
     expect(input.value).toBe("");
   });
 
-  it("Shift+Enter does not send", () => {
+  it("Cmd+Enter sends on macOS", () => {
+    const chat = makeChat();
+    const { input } = renderChat(chat);
+    fireEvent.input(input, { target: { value: "hi mac" } });
+    fireEvent.keyDown(input, { key: "Enter", metaKey: true });
+    expect(chat.send).toHaveBeenCalledWith("hi mac");
+  });
+
+  it("plain Enter and Shift+Enter do not send", () => {
     const chat = makeChat();
     const { input } = renderChat(chat);
     fireEvent.input(input, { target: { value: "line" } });
+    fireEvent.keyDown(input, { key: "Enter" });
     fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
     expect(chat.send).not.toHaveBeenCalled();
+    expect(input.value).toBe("line");
   });
 
   it("does not send while an IME composition is committing with Enter", () => {
     const chat = makeChat();
     const { input } = renderChat(chat);
     fireEvent.input(input, { target: { value: "かな" } });
-    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
-    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+    fireEvent.keyDown(input, { key: "Enter", ctrlKey: true, isComposing: true });
+    fireEvent.keyDown(input, { key: "Enter", ctrlKey: true, keyCode: 229 });
     expect(chat.send).not.toHaveBeenCalled();
     expect(input.value).toBe("かな");
   });
@@ -229,14 +239,14 @@ describe("AiChat composer", () => {
     expect(chat.stop).toHaveBeenCalled();
   });
 
-  it("keeps the draft when Enter is pressed during a stream", () => {
+  it("keeps the draft when Ctrl+Enter is pressed during a stream", () => {
     const chat = makeChat({
       active: conversation({ messages: [MESSAGES[0], message({ id: "a2", role: "assistant" })] }),
       streamingMessageId: "a2",
     });
     const { input } = renderChat(chat);
     fireEvent.input(input, { target: { value: "queued" } });
-    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.keyDown(input, { key: "Enter", ctrlKey: true });
     expect(chat.send).not.toHaveBeenCalled();
     expect(input.value).toBe("queued");
   });

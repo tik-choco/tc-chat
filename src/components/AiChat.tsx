@@ -397,7 +397,7 @@ export function AiChat(props: { onOpenSidebar: () => void }) {
   const hasProvider = config.providers.some((p) => p.enabled !== false);
 
   function submit() {
-    // Enter while a reply is streaming must not drop the draft: send() is a
+    // Ctrl+Enter while a reply is streaming must not drop the draft: send() is a
     // no-op then, so leave the text where it is for after Stop.
     if (streaming || !draft.trim()) return;
     void chat.send(draft);
@@ -620,7 +620,9 @@ export function AiChat(props: { onOpenSidebar: () => void }) {
                   // IME composition (e.g. Japanese kana->kanji) commits via
                   // Enter — that keystroke must not also send the message.
                   if (e.isComposing || e.keyCode === 229) return;
-                  if (e.key === "Enter" && !e.shiftKey) {
+                  // Plain Enter inserts a newline; Ctrl+Enter (Cmd+Enter on
+                  // macOS) sends.
+                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
                     e.preventDefault();
                     submit();
                   }
