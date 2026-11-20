@@ -16,12 +16,28 @@ import {
   MEDIA_EVENT_TRACK_REMOVED,
   EVENT_PEER_DISCONNECTED,
   DELIVERY_RELIABLE,
+  setLocalTrackEncoding,
   type MediaEventPayload,
+  type TrackEncoding,
 } from "../lib/mistClient";
 import { useT } from "../lib/i18n";
 
 const LOCAL_TRACK_PREFIX = "tc-chat-screen";
 const LOCAL_AUDIO_TRACK_PREFIX = "tc-chat-screen-audio";
+// Cap large captures at 1920×1080 while preserving the source aspect ratio.
+// Ask for a steady 30 fps because the browser default can be much lower.
+const SHARE_VIDEO_CONSTRAINTS: MediaTrackConstraints = {
+  width: { max: 1920 },
+  height: { max: 1080 },
+  frameRate: { ideal: 30, max: 30 },
+};
+// The browser's default ~2.5 Mbps send cap is what makes a screen share drop
+// to a few fps (screen content keeps its resolution and sheds frame rate
+// instead). Raise it; congestion control still backs off on slower links.
+const SHARE_VIDEO_ENCODING: TrackEncoding = {
+  maxBitrateBps: 8_000_000,
+  maxFramerate: 30,
+};
 
 // Explicit "I stopped sharing" broadcast. mistlib's unpublish/remove does not
 // reliably surface MEDIA_EVENT_TRACK_REMOVED on remote peers, so without this
@@ -146,7 +162,7 @@ export function useScreenShare(roomId: string | null) {
       try {
         // audio: true asks the browser to show its native "share audio"
         // checkbox in the picker — the user opts in there, not in-app.
-        stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        stream = await navigator.mediaDevices.getDisplayMedia({ video: SHARE_VIDEO_CONSTRAINTS, audio: true });
       } catch {
         // stop() may have already run while the picker was open -- don't
         // clobber whatever state it left behind.
@@ -173,6 +189,7 @@ export function useScreenShare(roomId: string | null) {
       localTrackIdRef.current = trackId;
       shareRoomIdRef.current = roomId;
       node.registerLocalTrack(trackId, track, { publish: true, enabled: true });
+      setLocalTrackEncoding(trackId, SHARE_VIDEO_ENCODING);
 
       const [audioTrack] = stream.getAudioTracks();
       if (audioTrack) {

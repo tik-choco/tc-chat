@@ -4,6 +4,7 @@ import { renderHook, act } from "@testing-library/preact";
 import { useScreenShare } from "./useScreenShare";
 
 const registerLocalTrack = vi.fn();
+const setLocalTrackEncoding = vi.fn((_trackId: string, _encoding: unknown) => true);
 const unpublishLocalTrack = vi.fn();
 const removeLocalTrack = vi.fn();
 const sendMessage = vi.fn();
@@ -21,6 +22,9 @@ vi.mock("../lib/mistClient", async () => ({
     sendMessage,
   })),
   localNodeId: () => "self-node",
+  // Lazy: the vi.mock factory is hoisted above the const it forwards to.
+  setLocalTrackEncoding: (trackId: string, encoding: unknown) =>
+    setLocalTrackEncoding(trackId, encoding),
   subscribeMediaEvent: vi.fn((listener: (eventType: number, payload: unknown) => void) => {
     mediaListener = listener;
     return () => {
@@ -71,7 +75,18 @@ describe("useScreenShare", () => {
       await result.current.start();
     });
 
-    expect(getDisplayMedia).toHaveBeenCalledWith({ video: true, audio: true });
+    expect(getDisplayMedia).toHaveBeenCalledWith({
+      video: {
+        width: { max: 1920 },
+        height: { max: 1080 },
+        frameRate: { ideal: 30, max: 30 },
+      },
+      audio: true,
+    });
+    expect(setLocalTrackEncoding).toHaveBeenCalledWith(
+      expect.stringMatching(/^tc-chat-screen:/),
+      { maxBitrateBps: 8_000_000, maxFramerate: 30 },
+    );
     expect(registerLocalTrack).toHaveBeenCalledWith(
       expect.stringContaining("track-1"),
       track,

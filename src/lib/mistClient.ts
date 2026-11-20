@@ -19,6 +19,7 @@ import {
   storage_add_pinned,
   type MediaEventPayload,
 } from "@tik-choco/mistlib-web";
+import * as mistEngine from "@tik-choco/mistlib";
 import { captureMistBuildInfo, markMistLoadError } from "./mistBuildInfo";
 
 export {
@@ -48,6 +49,39 @@ import type { SharedStorageBackend } from "../crypto/didIdentity";
 import { mistSignalingConfig } from "./mistSignaling";
 
 const SHARED_STORAGE_NAME = "tc-shared";
+
+export interface TrackEncoding {
+  maxBitrateBps?: number;
+  maxFramerate?: number;
+  degradationPreference?: "maintain-framerate" | "maintain-resolution" | "balanced";
+}
+
+type SetLocalTrackEncoding = (
+  trackId: string,
+  maxBitrateBps?: number | null,
+  maxFramerate?: number | null,
+  degradationPreference?: string | null,
+) => void;
+
+/**
+ * Sets the RTP send limits of a registered local track (applied to every peer
+ * it is published to, now and after each renegotiation). Without it the
+ * browser caps video at its default (~2.5 Mbps). Returns false when the
+ * loaded engine predates `set_local_track_encoding`, or rejects the values;
+ * the track then just keeps the browser defaults.
+ */
+export function setLocalTrackEncoding(trackId: string, encoding: TrackEncoding): boolean {
+  const apply = (mistEngine as unknown as { set_local_track_encoding?: SetLocalTrackEncoding })
+    .set_local_track_encoding;
+  if (typeof apply !== "function") return false;
+  try {
+    apply(trackId, encoding.maxBitrateBps, encoding.maxFramerate, encoding.degradationPreference);
+    return true;
+  } catch (err) {
+    console.warn("setLocalTrackEncoding failed", err);
+    return false;
+  }
+}
 
 /**
  * Wraps mistlib's storage_add/storage_get as a SharedStorageBackend for
